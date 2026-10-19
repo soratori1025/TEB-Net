@@ -63,6 +63,12 @@ python check/homologous_controls.py --series <predictions>.csv
 pytest ../../framework/tests tests -q
 ```
 
+> **First-run note.** `framework/tests/test_datasets.py` needs the MoleculeNet
+> files, which are not tracked (they are large and re-downloadable). Run
+> `python framework/benchmarks/prepare_moleculenet_data.py` once, or skip that
+> module: `pytest framework/tests --ignore=framework/tests/test_datasets.py`
+> (79 tests pass without it).
+
 ## Key result: CH2-homolog regulariser (lambda sweep)
 
 Member 0, seed 0, split seed 0, 100 epochs, no early stop:

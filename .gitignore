@@ -81,3 +81,8 @@ skills-lock.json
 
 # --- Runtime outputs --------------------------------------------------------
 *.log
+# TensorBoard event files are runtime logs, not results (results.json holds the
+# numbers). They are also rewritten while a run is in progress, which would
+# leave the tree permanently dirty.
+*.tfevents.*
+events.out.tfevents.*

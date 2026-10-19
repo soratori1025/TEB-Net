@@ -1,0 +1,81 @@
+2026-10-12 15:09:05,450 [INFO] tebnet.data.dataset: loaded physics cache models/tebnet-v3/deeptherm_data.physics_v15.csv (4997 species)
+2026-10-12 15:09:05,454 [INFO] tebnet.data.dataset: deeptherm_data.csv: column mapping
+    ΔH_f,298 : 'Hf_298.15K_kcal/mol' [kcal]  -> median -152.4 kJ/mol, 4997/4997 present
+    S298     : 'S_298.15K_cal/(molK)' [cal]  -> median 391.8 J/(mol·K), 4997/4997 present
+    Cp(T)    : ['cp_300K_cal/(molK)', 'cp_400K_cal/(molK)', 'cp_500K_cal/(molK)', 'cp_600K_cal/(molK)', 'cp_800K_cal/(molK)', 'cp_1000K_cal/(molK)', 'cp_1500K_cal/(molK)'] [cal]  -> median Cp(300K) 142.8 J/(mol·K), 4997/4997 complete rows
+2026-10-12 15:09:05,746 [INFO] tebnet.data.dataset: Dataset created with 4997 molecules
+2026-10-12 15:09:05,774 [INFO] tebnet.data.dataset: Dataset created with 501 molecules (v15 features: 501 from cache, 0 computed on the fly)
+2026-10-12 15:11:32,885 [INFO] tebnet.data.dataset: loaded physics cache models/tebnet-v3/deeptherm_data.physics_v15.csv (4997 species)
+2026-10-12 15:11:32,888 [INFO] tebnet.data.dataset: deeptherm_data.csv: column mapping
+    ΔH_f,298 : 'Hf_298.15K_kcal/mol' [kcal]  -> median -152.4 kJ/mol, 4997/4997 present
+    S298     : 'S_298.15K_cal/(molK)' [cal]  -> median 391.8 J/(mol·K), 4997/4997 present
+    Cp(T)    : ['cp_300K_cal/(molK)', 'cp_400K_cal/(molK)', 'cp_500K_cal/(molK)', 'cp_600K_cal/(molK)', 'cp_800K_cal/(molK)', 'cp_1000K_cal/(molK)', 'cp_1500K_cal/(molK)'] [cal]  -> median Cp(300K) 142.8 J/(mol·K), 4997/4997 complete rows
+2026-10-12 15:11:33,150 [INFO] tebnet.data.dataset: Dataset created with 4997 molecules
+2026-10-12 15:11:33,176 [INFO] tebnet.data.dataset: Dataset created with 501 molecules (v15 features: 501 from cache, 0 computed on the fly)
+H side:
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member0_seed0 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member1_seed1 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member2_seed2 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member3_seed3 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member4_seed4 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member5_seed5 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member6_seed6 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member7_seed7 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member8_seed8 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h_sp-v2_exact_splitH/random0/member9_seed9 (501 test molecules)
+S/Cp side:
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member0_seed0 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member1_seed1 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member2_seed2 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member3_seed3 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member4_seed4 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member5_seed5 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member6_seed6 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member7_seed7 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member8_seed8 (501 test molecules)
+  loaded models/tebnet-v3/benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp_sp-v2_exact_splitSCp/random0/member9_seed9 (501 test molecules)
+
+torch layer vs numpy replica: max |Δa| low 2.0e-06, high 2.0e-06
+
+10 ΔH model(s), 10 S/Cp model(s); T grid [300.0, 400.0, 500.0, 600.0, 800.0, 1000.0, 1500.0] K, T_mid 1000 K, NASA high range to 3000 K
+
+### TEB-Net NASA-7 as trained (n = 501)
+
+| Check | ΔH298 [J/mol] | S298 [J/(mol K)] | Cp(T_grid) [J/(mol K)] |
+|---|---|---|---|
+| NASA-7 (float64) vs evaluated prediction, max abs | 1.21e-02 | 2.27e-05 | 1.43e-05 |
+| NASA-7 (Chemkin E15.8) vs evaluated prediction, max abs | 1.25e-02 | 2.30e-05 | 1.45e-05 |
+
+Jumps at T_mid = 1000 K (max abs): Cp [J/(mol K)] 2.4e-13, H [J/mol] 1.8e-10, S [J/(mol K)] 7.1e-13
+Kink in dCp/dT at T_mid (not enforced by the layer): median 4.22e-02, max 1.09e-01 J/(mol K²); median 34 % of the low-side slope
+Sanity, inside each range: max |dH/dT / Cp − 1|, |T dS/dT / Cp − 1| = 3.8e-09 (holds for any NASA-7 polynomial)
+
+| Physics, 300–3000 K | Molecules |
+|---|---|
+| Cp above the classical limit (3N−2)R somewhere | 499 (99.6 %) |
+| … by more than 1 R | 495 (98.8 %) |
+| median T of the first crossing | 2340 K |
+| Cp decreasing with T somewhere | 0 (0.0 %) |
+| Cp(3000 K) / Cp_inf estimate, 5th / 50th / 95th pct | 1.13 / 1.18 / 1.22 |
+
+### after --complete_high (n = 501)
+
+| Check | ΔH298 [J/mol] | S298 [J/(mol K)] | Cp(T_grid) [J/(mol K)] |
+|---|---|---|---|
+| NASA-7 (float64) vs evaluated prediction, max abs | 1.21e-02 | 2.27e-05 | 1.43e-05 |
+| NASA-7 (Chemkin E15.8) vs evaluated prediction, max abs | 1.25e-02 | 2.30e-05 | 1.74e-05 |
+
+Jumps at T_mid = 1000 K (max abs): Cp [J/(mol K)] 8.3e-12, H [J/mol] 8.9e-11, S [J/(mol K)] 1.2e-13
+Kink in dCp/dT at T_mid (not enforced by the layer): median 5.14e-14, max 1.38e-13 J/(mol K²); median 0 % of the low-side slope
+Sanity, inside each range: max |dH/dT / Cp − 1|, |T dS/dT / Cp − 1| = 3.4e-09 (holds for any NASA-7 polynomial)
+
+| Physics, 300–3000 K | Molecules |
+|---|---|
+| Cp above the classical limit (3N−2)R somewhere | 0 (0.0 %) |
+| … by more than 1 R | 0 (0.0 %) |
+| median T of the first crossing | nan K |
+| Cp decreasing with T somewhere | 0 (0.0 %) |
+| Cp(3000 K) / Cp_inf estimate, 5th / 50th / 95th pct | 0.96 / 0.97 / 0.99 |
+
+no saturating target (flat at Cp(T1)): 0 molecules | change of Cp between 1000 and 1500 K (no data there): median 4.54, max 11.68 J/(mol K)
+change at 3000 K, completed − as trained: |ΔH| median 12.73, max 33.61 kcal/mol; |ΔS| median 5.00, max 13.20 cal/(mol K)

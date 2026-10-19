@@ -1,0 +1,15 @@
+diff --git a/naphtha_props/features/calculated_features.py b/naphtha_props/features/calculated_features.py
+index 3d0adfd..f9db2af 100644
+--- a/naphtha_props/features/calculated_features.py
++++ b/naphtha_props/features/calculated_features.py
+@@ -232,7 +232,9 @@ def get_only_H(mol: Chem.rdchem.Mol):
+ 
+ 
+ def get_sssr(mol: Chem.rdchem.Mol):
+-    return rdmolops.GetSSSR(mol)
++    result = rdmolops.GetSSSR(mol)
++    # In newer RDKit versions, GetSSSR returns ring info object, not int
++    return len(result) if not isinstance(result, (int, float)) else result
+ 
+ 
+ def get_num_rotable_bonds(mol: Chem.rdchem.Mol):

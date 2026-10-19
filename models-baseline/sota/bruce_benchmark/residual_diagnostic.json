@@ -1,0 +1,218 @@
+{
+  "per_seed": [
+    {
+      "seed": 42,
+      "n_test": 1211,
+      "Hf298_kcal_mol": {
+        "MAE_baseline_only": 21.7697,
+        "MAE_final": 2.0231,
+        "MAE_residual_sanity": 2.0231,
+        "baseline_reduction_pct": 90.7,
+        "residual_std_kcal": 26.9489,
+        "residual_mean_kcal": -1.5541
+      },
+      "S298_cal_molK": {
+        "MAE_baseline_only": 4.4783,
+        "MAE_final": 1.0948,
+        "MAE_residual_sanity": 1.0948,
+        "baseline_reduction_pct": 75.6,
+        "residual_std_cal": 5.9639,
+        "residual_mean_cal": 0.1042
+      },
+      "Cp_avg_cal_molK": {
+        "MAE_final": 1.1226
+      },
+      "outliers_h_top10": [
+        {
+          "smiles": "C#C[C]C",
+          "error_kcal": 27.052,
+          "true_kcal": 75.77,
+          "pred_kcal": 102.82,
+          "baseline_kcal": 67.71,
+          "residual_target_kcal": 8.057
+        },
+        {
+          "smiles": "C1=CC=C=CC=1",
+          "error_kcal": 22.832,
+          "true_kcal": 138.45,
+          "pred_kcal": 115.62,
+          "baseline_kcal": 83.12,
+          "residual_target_kcal": 55.331
+        },
+        {
+          "smiles": "C[C]OC",
+          "error_kcal": 22.098,
+          "true_kcal": -10.76,
+          "pred_kcal": 11.34,
+          "baseline_kcal": 6.23,
+          "residual_target_kcal": -16.991
+        },
+        {
+          "smiles": "C=C[C]C",
+          "error_kcal": 19.658,
+          "true_kcal": 31.37,
+          "pred_kcal": 51.03,
+          "baseline_kcal": 51.09,
+          "residual_target_kcal": -19.723
+        },
+        {
+          "smiles": "O=Cc1cc[c]o1",
+          "error_kcal": 18.439,
+          "true_kcal": 31.29,
+          "pred_kcal": 12.85,
+          "baseline_kcal": 9.41,
+          "residual_target_kcal": 21.881
+        },
+        {
+          "smiles": "[c]1ccco1",
+          "error_kcal": 17.99,
+          "true_kcal": 60.85,
+          "pred_kcal": 42.86,
+          "baseline_kcal": 38.87,
+          "residual_target_kcal": 21.985
+        },
+        {
+          "smiles": "C1=CC(C2CCC2)=C1",
+          "error_kcal": 15.138,
+          "true_kcal": 110.64,
+          "pred_kcal": 95.5,
+          "baseline_kcal": 48.66,
+          "residual_target_kcal": 61.978
+        },
+        {
+          "smiles": "[CH]=Cc1c2C=Cc3c2c(ccc3)cc1",
+          "error_kcal": 14.818,
+          "true_kcal": 147.67,
+          "pred_kcal": 132.85,
+          "baseline_kcal": 103.19,
+          "residual_target_kcal": 44.479
+        },
+        {
+          "smiles": "C1=Cc2ccc3C=Cc4c3c2c1cc4",
+          "error_kcal": 14.177,
+          "true_kcal": 103.08,
+          "pred_kcal": 88.9,
+          "baseline_kcal": 111.5,
+          "residual_target_kcal": -8.421
+        },
+        {
+          "smiles": "CC",
+          "error_kcal": 12.89,
+          "true_kcal": -20.31,
+          "pred_kcal": -7.42,
+          "baseline_kcal": 35.69,
+          "residual_target_kcal": -55.997
+        }
+      ],
+      "correlations_h_residual": {
+        "degree_of_unsaturation": {
+          "rho": 0.2718,
+          "p_value": "5.99e-22"
+        },
+        "n_heavy": {
+          "rho": 0.2386,
+          "p_value": "3.87e-17"
+        },
+        "mol_weight": {
+          "rho": 0.212,
+          "p_value": "8.99e-14"
+        },
+        "n_radical_electrons": {
+          "rho": 0.188,
+          "p_value": "4.23e-11"
+        },
+        "n_rotatable": {
+          "rho": 0.1741,
+          "p_value": "1.07e-09"
+        },
+        "frac_sp2": {
+          "rho": 0.1669,
+          "p_value": "5.14e-09"
+        },
+        "n_rings": {
+          "rho": 0.1521,
+          "p_value": "1.04e-07"
+        },
+        "n_atoms": {
+          "rho": 0.1041,
+          "p_value": "2.83e-04"
+        },
+        "n_aromatic_rings": {
+          "rho": 0.0936,
+          "p_value": "1.11e-03"
+        }
+      },
+      "correlations_s_residual": {
+        "degree_of_unsaturation": {
+          "rho": 0.0813,
+          "p_value": "4.63e-03"
+        },
+        "n_aromatic_rings": {
+          "rho": 0.0709,
+          "p_value": "1.36e-02"
+        },
+        "frac_sp2": {
+          "rho": 0.0645,
+          "p_value": "2.48e-02"
+        },
+        "n_radical_electrons": {
+          "rho": 0.0511,
+          "p_value": "7.55e-02"
+        },
+        "n_atoms": {
+          "rho": 0.044,
+          "p_value": "1.26e-01"
+        },
+        "n_heavy": {
+          "rho": 0.0388,
+          "p_value": "1.78e-01"
+        },
+        "mol_weight": {
+          "rho": 0.0305,
+          "p_value": "2.89e-01"
+        },
+        "n_rotatable": {
+          "rho": 0.0279,
+          "p_value": "3.32e-01"
+        },
+        "n_rings": {
+          "rho": 0.0211,
+          "p_value": "4.64e-01"
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "H_baseline": 21.7697,
+    "H_final": 2.0231,
+    "H_reduction": 90.7,
+    "S_baseline": 4.4783,
+    "S_final": 1.0948,
+    "S_reduction": 75.6,
+    "Cp_final": 1.1226
+  },
+  "correlation_mean_abs_rho": {
+    "h_residual": {
+      "degree_of_unsaturation": 0.2718,
+      "n_heavy": 0.2386,
+      "mol_weight": 0.212,
+      "n_radical_electrons": 0.188,
+      "n_rotatable": 0.1741,
+      "frac_sp2": 0.1669,
+      "n_rings": 0.1521,
+      "n_atoms": 0.1041,
+      "n_aromatic_rings": 0.0936
+    },
+    "s_residual": {
+      "degree_of_unsaturation": 0.0813,
+      "n_aromatic_rings": 0.0709,
+      "frac_sp2": 0.0645,
+      "n_radical_electrons": 0.0511,
+      "n_atoms": 0.044,
+      "n_heavy": 0.0388,
+      "mol_weight": 0.0305,
+      "n_rotatable": 0.0279,
+      "n_rings": 0.0211
+    }
+  }
+}

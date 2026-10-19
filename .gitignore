@@ -1,0 +1,83 @@
+# ============================================================================
+# TEB-Net research repository
+# ----------------------------------------------------------------------------
+# What is intentionally NOT tracked here, and where to get it:
+#   * .venv/                     -> recreate: python -m venv .venv && pip install -e .
+#   * *.ckpt / *.pt / *.npz      -> ~2.5 GB of model weights. Full snapshot of
+#                                   the research tree is in
+#                                   tebnet_research_2026-10-19.zip (2.3 GB).
+#   * third-party SOTA clones    -> models-baseline/sota/{chemprop_repo,
+#                                   DeepTherm,HC-Thermochemistry,RMG-database}
+#                                   are separate upstream repos. Our local
+#                                   modifications to them are preserved in
+#                                   models-baseline/sota_patches/.
+# ============================================================================
+
+# --- Python environment -----------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.conda/
+python_env.yaml
+*.egg-info/
+.eggs/
+
+# --- Python bytecode / caches ----------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# --- Model weights & large binary artefacts ---------------------------------
+*.ckpt
+*.pt
+*.pth
+*.safetensors
+*.onnx
+*.h5
+*.hdf5
+*.npz
+*.npy
+*.pkl
+*.joblib
+
+# --- Data caches ------------------------------------------------------------
+.descriptor_cache/
+.chemistry_cache/
+
+# --- Nested upstream git repositories ---------------------------------------
+# These are independent clones; see models-baseline/sota_patches/ for our diff.
+models-baseline/sota/chemprop_repo/
+models-baseline/sota/DeepTherm/
+models-baseline/sota/HC-Thermochemistry/
+models/tebnet-v3/RMG-database/
+
+# --- Editor / OS noise ------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Agent tooling (was quarantined 2026-10-19) -----------------------------
+.claude/
+.roo/
+.augment/
+.qwen/
+.windsurf/
+.trae/
+.tabnine/
+.agents/
+skills/
+skills-lock.json
+
+# --- Runtime outputs --------------------------------------------------------
+*.log

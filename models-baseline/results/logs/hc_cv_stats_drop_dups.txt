@@ -1,0 +1,23 @@
+
+ab_initio_database_hc | scratch_w1-0-0_mon-h_thermo_d5_bh256_ep150_physics_cv0_s0 + scratch_w0-1.5-1_mon-scp_thermo_d5_bh256_ep150_physics_cv0_s0 | n = 330
+
+  duplicates by InChIKey: 0 groups (0 rows); 0 groups split across outer folds
+
+  all molecules (n = 330)
+                           MAE           95 % CI    RMSE        per fold    ref ref in CI P(MAE<ref)
+  ΔH298 [kJ/mol]          2.53 [  2.21,   2.86]    3.91    2.53 ± 0.60   2.52       yes       0.48
+  S298 [J/(mol K)]        2.97 [  2.65,   3.32]    4.29    2.97 ± 0.54   2.97       yes       0.51
+  Cp300 [J/(mol K)]       1.73 [  1.55,   1.92]    2.41    1.73 ± 0.32   1.66       yes       0.23
+
+  10 largest ΔH298 errors [kJ/mol]
+  SMILES                                        true      pred   |err| fold
+  [H]C([H])([H])C#CC([H])([H])C#CC([H])([H    365.15    345.11   20.04    2
+  [H]C([H])=C=C([H])C(C([H])=C=C([H])[H])(    324.21    341.69   17.48    9
+  [H]C([H])=C=C([H])C([H])([H])C([H])=C=C(    398.66    381.19   17.47    4
+  [H]C#CC(C#C[H])(C#C[H])C#CC([H])([H])[H]    973.25    959.60   13.65    0
+  [H]C([H])=C=C([H])C([H])([H])C([H])([H])    149.08    136.99   12.10    2
+  [H]C([H])([H])C(=C(C([H])([H])[H])C(C([H   -116.16   -127.97   11.81    9
+  [H]C#CC#CC#CC#C[H]                          917.39    929.05   11.66    1
+  [H]C(=C(C([H])([H])[H])C([H])([H])[H])C(    186.31    174.89   11.43    2
+  [H]C#C/C(C([H])=C([H])[H])=C(/[H])C([H])    312.35    323.38   11.03    3
+  [H]C([H])=C([H])/C([H])=C(\[H])C([H])([H     86.84     76.09   10.75    2

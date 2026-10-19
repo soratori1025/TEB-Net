@@ -1,0 +1,104 @@
+Running nasa7_check.py
+2026-10-06 23:49:56,930 [INFO] tebnet.data.dataset: Dataset created with 0 molecules (v15 features: 0 from cache, 0 computed on the fly)
+[23:50:03] Interrupted, cancelling conformer generation
+rmg_cp_reference.csv: 692 unique SMILES
+H side:
+Traceback (most recent call last):
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/check/nasa7_check.py", line 526, in <module>
+    main()
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/check/nasa7_check.py", line 439, in main
+    h_runs = run_models(args.h_runs, args.csv, args.physics_cache, args.batch_size, query)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/check/nasa7_check.py", line 344, in run_models
+    ds = _query_dataset(query_smiles, t_grid, use_3d)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/check/nasa7_check.py", line 269, in _query_dataset
+    sub = ThermochemDataset([r], T_grid=t_grid, aux_feature_set="v15", compute_aux=True, use_3d=use_3d)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/tebnet/data/dataset.py", line 77, in __init__
+    self._process_records(records)
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/tebnet/data/dataset.py", line 113, in _process_records
+    x_physic = compute_v15_vector(mol, use_3d=self.use_3d)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/tebnet/data/featurizer.py", line 785, in compute_v15_vector
+    f = compute_v15_features(mol, use_3d=use_3d)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/tebnet/data/featurizer.py", line 780, in compute_v15_features
+    log_i, log_r, ok = _moi_features(mol, n_atoms_h, f["is_linear"])
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/tebnet/data/featurizer.py", line 553, in _moi_features
+    cid = AllChem.EmbedMolecule(mh, params)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt: Embedding cancelled
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member0_seed0 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member1_seed1 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member2_seed2 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member3_seed3 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member4_seed4 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member5_seed5 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member6_seed6 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member7_seed7 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member8_seed8 (692 molecules)
+  loaded benchmark_results_deeptherm/thermo_physics_chebyshev_3d_grouped_d5_global_sp-v2_exact/random0/member9_seed9 (692 molecules)
+S/Cp side:
+
+torch layer vs numpy replica: max |Δa| low 2.9e-06, high 2.9e-06
+
+10 ΔH model(s), 10 S/Cp model(s); T grid [300.0, 400.0, 500.0, 600.0, 800.0, 1000.0, 1500.0] K, T_mid 1000 K, NASA high range to 3000 K
+
+### TEB-Net NASA-7 as trained (n = 692)
+
+| Check | ΔH298 [J/mol] | S298 [J/(mol K)] | Cp(T_grid) [J/(mol K)] |
+|---|---|---|---|
+| NASA-7 (float64) vs evaluated prediction, max abs | 1.11e-02 | 3.02e-05 | 1.36e-05 |
+| NASA-7 (Chemkin E15.8) vs evaluated prediction, max abs | 1.12e-02 | 2.67e-05 | 1.40e-05 |
+
+Jumps at T_mid = 1000 K (max abs): Cp [J/(mol K)] 3.0e-13, H [J/mol] 2.4e-10, S [J/(mol K)] 7.1e-13
+Kink in dCp/dT at T_mid (not enforced by the layer): median 5.11e-02, max 9.18e-02 J/(mol K²); median 35 % of the low-side slope
+Sanity, inside each range: max |dH/dT / Cp − 1|, |T dS/dT / Cp − 1| = 3.8e-09 (holds for any NASA-7 polynomial)
+
+| Physics, 300–3000 K | Molecules |
+|---|---|
+| Cp above the classical limit (3N−2)R somewhere | 680 (98.3 %) |
+| … by more than 1 R | 660 (95.4 %) |
+| median T of the first crossing | 2250 K |
+| Cp decreasing with T somewhere | 5 (0.7 %) |
+| Cp(3000 K) / Cp_inf estimate, 5th / 50th / 95th pct | 1.11 / 1.18 / 1.20 |
+
+### after --complete_high (n = 692)
+
+| Check | ΔH298 [J/mol] | S298 [J/(mol K)] | Cp(T_grid) [J/(mol K)] |
+|---|---|---|---|
+| NASA-7 (float64) vs evaluated prediction, max abs | 1.11e-02 | 3.02e-05 | 1.36e-05 |
+| NASA-7 (Chemkin E15.8) vs evaluated prediction, max abs | 1.12e-02 | 2.67e-05 | 1.57e-05 |
+
+Jumps at T_mid = 1000 K (max abs): Cp [J/(mol K)] 5.1e-12, H [J/mol] 1.2e-10, S [J/(mol K)] 1.2e-13
+Kink in dCp/dT at T_mid (not enforced by the layer): median 6.99e-13, max 1.29e-12 J/(mol K²); median 0 % of the low-side slope
+Sanity, inside each range: max |dH/dT / Cp − 1|, |T dS/dT / Cp − 1| = 4.4e-09 (holds for any NASA-7 polynomial)
+
+| Physics, 300–3000 K | Molecules |
+|---|---|
+| Cp above the classical limit (3N−2)R somewhere | 2 (0.3 %) |
+| … by more than 1 R | 0 (0.0 %) |
+| median T of the first crossing | 300 K |
+| Cp decreasing with T somewhere | 9 (1.3 %) |
+| Cp(3000 K) / Cp_inf estimate, 5th / 50th / 95th pct | 0.96 / 0.97 / 0.99 |
+
+no saturating target (flat at Cp(T1)): 3 molecules | change of Cp between 1000 and 1500 K (no data there): median 5.49, max 9.79 J/(mol K)
+change at 3000 K, completed − as trained: |ΔH| median 14.96, max 26.42 kcal/mol; |ΔS| median 5.88, max 10.38 cal/(mol K)
+
+split membership of the species: train 212, val 0, test 15, none 465
+
+wrote 692 NASA-7 blocks to c5_rmg.dat (+ name→SMILES table)
+wrote the as-trained (linear high range) blocks to c5_rmg.as_trained.dat
+Running high_t_validation.py
+Traceback (most recent call last):
+  File "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3/check/high_t_validation.py", line 41, in <module>
+    from rmg_high_t_reference import cp_j, h_j, s_j          # noqa: E402  (reference polynomials, 7 or 9 coefficients)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'rmg_high_t_reference'
+Running plot_cp_completion.py
+666 species with a high-temperature reference
+species: Q293 (O=C1[CH]OC=CC=C1, none, SABIC_aromatics_1dHR), Q441 (C1=Cc2cc3ccccc3cc21, none, SABIC_aromatics_1dHR), Q579 (CCC1CCC12C=CCC=C2, none, SABIC_aromatics_1dHR)
+wrote fig_cp_completion.pdf and fig_cp_completion.png
+Done

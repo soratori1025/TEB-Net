@@ -1,0 +1,233 @@
+ELEMENTS
+C H N O AR HE
+END
+SPECIES
+
+H2                                                                          !H2
+CH                                                                  !CH radical
+CH2(S)                                                             !CH2 singlet
+CH2(T)                                                             !CH2 triplet
+CH3                                                             !methyl radical
+CH4                                                                    !methane
+OH                                                            !hydroxyl radical
+H2O                                                                        !H2O
+CO                                                             !carbon monoxide
+HCO                                                             !formyl radical
+CH2O                                                              !formaldehyde
+HCOH(S)                                               !hydroxymethylene singlet
+HCOH(T)                                               !hydroxymethylene triplet
+CH3O                                                           !methoxy radical
+CH2OH                                                    !hydroxymethyl radical
+CH3OH                                                                 !methanol
+O2                                                                          !O2
+HO2                                                       !hydroperoxyl radical
+HOOH                                                         !hydrogen-peroxide
+CO2                                                             !carbon dioxide
+HOCO                                                   !hydroxycarbonyl radical
+formyloxy                                                    !formyloxy radical
+formic_acid                                                        !formic acid
+CH3OO                                                     !methylperoxy radical
+HOCH2O                                                  !hydroxymethoxy radical
+CH3OOH                                                    !methyl-hydroperoxide
+cCO3                                                             !3-dioxiranone
+formylperoxy                                              !formylperoxy radical
+OCHOOH                                                    !formyl-hydroperoxide
+HOOCH2O                                            !hydroperoxy-methoxy radical
+HOCH2OO                                           !hydroxymethyl-peroxy radical
+HOOCH2OH                                                  !hydroperoxy-methanol
+C2(S)                                                               !C2 singlet
+C2(T)                                                               !C2 triplet
+HC2                                                            !ethynyl radical
+C2H2                                                          !acetylene ethyne
+C2H2(T)                                                      !acetylene triplet
+H2CC(S)                                                     !vinylidene singlet
+H2CC(T)                                                     !vinylidene triplet
+C2H3                                                             !vinyl radical
+CCH3                                                        !ethylidyne radical
+C2H4                                                                    !ethene
+C2H4(T)                                                         !ethene triplet
+CHCH3(S)                                                    !ethylidene singlet
+CHCH3(T)                                                    !ethylidene triplet
+C2H5                                                             !ethyl radical
+C2H6                                                                    !ethane
+C2O(S)                                               !dicarbon monoxide singlet
+C2O(T)                                               !dicarbon monoxide triplet
+HCCO                                                            !kentyl radical
+ethynol                                                                !ethynol
+ketene                                                                  !ketene
+ketene(T)                                                                !CHCHO
+oxirene                                                                !oxirene
+oxiranyl                                                      !oxiranyl radical
+CHCHOH                                                 !2-hydroxy-vinyl radical
+CH2COH                                                 !1-hydroxy-vinyl radical
+vinoxy                                                          !vinoxy radical
+acetyl                                                          !acetyl radical
+oxirane                                                 !oxirane ethylene-oxide
+ethenol                                                  !ethenol vinyl alcohol
+CH3CHO                                                            !acetaldehyde
+CH3CH2O                                                         !ethoxy radical
+CH3OCH2                                                 !methoxy-methyl radical
+CH2CH2OH                                               !2-hydroxy-ethyl radical
+CH3CHOH                                                !1-hydroxy-ethyl radical
+ethanol                                                                !ethanol
+DME                                                             !dimethyl-ether
+OCCO(T)                                                     !ethenedial triplet
+OCHCO                                                 !1,2-dionyl-ethyl radical
+OCCOH                                               !1-hydroxyl-ketenyl radical
+glyoxal                                                                !glyoxal
+oxiranone                                              !oxiranone aceto-lactone
+hydroxyketene                                                   !hydroxy-ketene
+ethynediol                                                          !ethynediol
+CH2CHOO                                                    !vinylperoxy radical
+CHCHOOH                                           !2-hydroperoxyl-vinyl radical
+OCH2CHO                                                 !formyl-methoxy radical
+CH2OCHO                                              !formyloxyl-methyl radical
+CH3OCO                                                 !methoxyl-formyl radical
+cC2H3O2                                                    !oxiranyloxy radical
+acetyloxy                                                    !acetyloxy radical
+CH2COOH                                           !2-hydroperoxyl-vinyl radical
+CH2CHOOH                                                   !vinyl-hydroperoxide
+acetic_acid                                                        !acetic acid
+methyl_formate                                                  !methyl-formate
+HOCHCHOH                                                    !cis-ethen-1,2-diol
+HOCH2CHO                                                  !hydroxy-acetaldehyde
+CH3CH2OO                                                   !ethylperoxy radical
+CH2CH2OOH                                           !hydroperoxyl-ethyl radical
+HOCH2CHOH                                         !1,2-dihydroxyl-ethyl radical
+HOCH2CH2O                                            !3-hydroxyl-ethoxy radical
+CH3OCHOH                                      !hydroxyl,methoxyl-methyl radical
+HOCH2OCH2                                       !hydroxymethoxyl-methyl radical
+CH3OCH2O                                              !methoxyl-methoxy radical
+CH3CH2OOH                                                  !ethyl-hydroperoxide
+CH3OOCH3                                                     !dimethyl-peroxide
+ketenylperoxy                                            !ketenylperoxy radical
+acetylperoxy                                              !acetylperoxy radical
+vinoxyperoxy                                       !formylmethyl-peroxy radical
+hoo_acetyl                                         !hydroperoxyl-acetyl radical
+hoo_vinoxy                                         !hydroperoxyl-vinoxy radical
+CH3OOCH2O                                                  !ethyl-hydroperoxide
+HOOCH2CH2OO                                 !2-hydroperoxyl-ethylperoxy radical
+H2CCC(S)                                              !propadienylidene singlet
+HCCCH(S)                                                         !HCCCH singlet
+HCCCH(T)                                                 !propynylidene triplet
+C3H3                                                         !propargyl radical
+allene                                                                  !allene
+propyne                                                                !propyne
+cC3H4                                                             !cyclopropene
+allyl                                                            !allyl radical
+cC3H5                                                              !cyclopropyl
+propen2yl                                 !propen-2-yl (1-methyl-vinyl) radical
+propen1yl                                 !propen-1-yl (2-methyl-vinyl) radical
+cC3H6                                                             !cyclopropane
+C3H6                                                                   !propene
+C3H6(T)                                                        !propene triplet
+npropyl                                                       !n-propyl radical
+ipropyl                                                      !isopropyl radical
+C3H8                                                                   !propane
+HCCCO                                                       !propynonyl radical
+propynal                                                              !propynal
+CH2CCO                                                             !propadienal
+CH2CHCO                                                   !vinyl-formyl radical
+CH2CCHO                                                 !1-formyl-vinyl radical
+CHCHCHO                                                 !2-formyl-vinyl radical
+acrolein                                                              !acrolein
+acrolein(T)                                                   !acrolein triplet
+methylketene                                                     !methyl-ketene
+oxetene                                                                !oxetene
+allyloxy                                                      !allyloxy radical
+propen2oxy                                                !propen-2-oxy radical
+CH2CH2CHO                                               !2-formyl-ethyl radical
+oxiranylmethyl                                         !oxiranyl-methyl radical
+CH2OCHCH2                                               !vinoxyl-methyl radical
+CH3CHCHO                                                !1-formyl-ethyl radical
+CH3CH2CO                                                     !propionyl radical
+oxetanyl2                                                   !2-oxetanyl radical
+oxetanyl3                                                   !3-oxetanyl radical
+hydroxyl1allyl                                                !1-hydroxyl-allyl
+hydroxyl2allyl                                                !2-hydroxyl-allyl
+acetone                                                                !acetone
+propanal                                               !propanal (propaldehyde)
+propen1ol                                                          !propen-1-ol
+propen2ol                                                          !propen-2-ol
+cC3H6O                                                         !propylene-oxide
+oxetane                                                                !oxetane
+propen3ol                                                        !allyl-alcohol
+cyclopropanol                                                    !cyclopropanol
+npropoxy                                                   !n-propyloxy radical
+ipropoxy                                                  !isopropyloxy radical
+CH2CH2CH2OH                                       !3-hydroperoxy-propyl radical
+CH3CH2CHOH                                            !1-hydroxy-propyl radical
+CH3CHCH2OH                                    !1-methyl-2-hydroxy-ethyl radical
+CH3CHOHCH2                                           !2-hydroxyl-propyl radical
+CH3COHCH3                                    !1-methyl-1-hydroxyl-ethyl radical
+CH3CH2OCH2                                              !ethoxyl-methyl radical
+CH2CH2OCH3                                            !2-methoxyl-ethyl radical
+CH3CHOCH3                                             !1-methoxyl-ethyl radical
+npropanol                                                           !n-propanol
+ipropanol                                                          !isopropanol
+EME                                                         !ethyl-methyl-ether
+allylperoxy                                                !allylperoxy radical
+propen1peroxy                                          !propen-1-peroxy radical
+propen2peroxy                                          !propen-2-peroxy radical
+OCHCH2CH2O                                             !2-formyl-ethoxy radical
+CH3CHOCHO                                              !1-formyl-ethoxy radical
+CH3COCH2O                                               !acetyl-methoxy radical
+oxiranylmethoxy                                        !oxiranylmethoxy radical
+CH2CHCH2OOH                                                !allyl-hydroperoxide
+propen1ooh                                              !propen-1-hydroperoxide
+propen2ooh                                              !propen-2-hydroperoxide
+npropylperoxy                                           !n-propylperoxy radical
+ipropylperoxy                                          !isopropylperoxy radical
+QOOH_1                                         !3-hydroperoxyl-1-propyl radical
+QOOH_2                                         !3-hydroperoxyl-2-propyl radical
+QOOH_3                                   !2-methyl-2-hydroperoxyl-ethyl radical
+npropylooh                                              !n-propyl-hydroperoxide
+ipropylooh                                             !isopropyl-hydroperoxide
+CH3CHOOCHO                                        !1-formyl-ethylperoxy radical
+OCHCH2CH2OO                                       !2-formyl-ethylperoxy radical
+CH3COCH2OO                                         !acetyl-methylperoxy radical
+oxiranylmoo                                              !oxiranyl-methylperoxy
+CH3CHOOHCHO                                       !1-formyl-ethyl-hydroperoxide
+OCHCH2CH2OOH                                      !2-formyl-ethyl-hydroperoxide
+CH3COCH2OOH                                        !acetyl-methyl-hydroperoxide
+cC2H3OCH2OOH                                     !oxiranyl-methyl-hydroperoxide
+HOOCH2CH2CH2OO                              !3-hydroperoxy-propylperoxy radical
+CH3CHOOCH2OOH                       !1-methyl-2-hydroperoxy-ethylperoxy radical
+CH3CHOOHCH2OO                               !2-hydroperoxy-propylperoxy radical
+HOOCH2CHCH2OOH                             !1,3-dihydroperoxy-prop-2-yl radical
+CH2CHOOHCH2OOH                             !2,3-dihydroperoxy-prop-1-yl radical
+HCCCCH                                                           !1,3-butadiyne
+HCCCHCH                                             !but-3-yn-1-en-1-yl radical
+CH2CCCH                                             !but-1-yn-3-en-3-yl radical
+CH2CHCCH                                                         !1-buten-3-yne
+butatriene123                                                 !1,2,3-butatriene
+CH3CHCCH                                             !1,2-butadien-1-yl radical
+CH2CHCCH2                                            !1,3-butadien-2-yl radical
+CH2CHCHCH                                            !1,3-butadien-1-yl radical
+butyne1                                                               !1-butyne
+CH3CHCCH2                                                        !1,2-butadiene
+butadiene13                                                      !1,3-butadiene
+m1_allyl                                                        !1-methyl-allyl
+m2_allyl                                                        !2-methyl-allyl
+buten1yl1                                                         !1-buten-1-yl
+buten3yl1                                                         !3-buten-1-yl
+buten22yl                                                         !2-buten-2-yl
+butene1                                                               !1-butene
+butene2c                                                          !cis-2-butene
+butene2t                                                        !trans-2-butene
+isobutene                                                            !isobutene
+butyl_1                                                        !1-butyl radical
+butyl_2                                                        !2-butyl radical
+ibutyl                                                        !isobutyl radical
+tbutyl                                                      !tert-butyl radical
+nbutane                                                               !n-butane
+ibutane                                                              !isobutane
+
+
+END
+
+REACTIONS
+
+END
+
+

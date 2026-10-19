@@ -1,0 +1,97 @@
+### **Dataset Curation Process**  
+
+The dataset curation process was systematically designed to ensure consistency, accuracy, and completeness of molecular and thermochemical properties. Below, we detail the key steps involved in preprocessing, filtering, and feature extraction.
+
+---
+
+### **DatasetProcessing Workflow**
+
+#### **Step 1: Data Collection and Standardization**  
+1. **Collate Data**: Gather thermochemical data from multiple theoretical studies and kinetic models.  
+2. **Unit Standardization**: Convert all thermochemical properties to consistent units (e.g., energy in kcal/mol, entropy and heat capacity in cal/(mol·K)).  
+
+#### python
+FOR each parameter IN data:
+    IF parameter.unit IS NOT consistent THEN
+        parameter.value = ConvertToCommonUnit(parameter.value, commonUnit)
+
+---
+
+#### **Step 2: Molecular Representation Processing**  
+3. **Canonicalization of SMILES**: Convert all SMILES representations to their canonical form using RDKit to ensure uniqueness.  
+4. **Kekulization Check**: Remove any species that cannot be Kekulized to avoid ambiguous molecular structures.  
+
+####python
+FOR each compound IN data:
+    compound.SMILES = ConvertToCanonicalSMILES(compound.SMILES)
+    IF NOT CanKekulize(compound.SMILES) THEN
+        REMOVE compound FROM data
+
+5. **Label and Reference Dataset**: Assign unique identifiers to each species and document data sources for traceability.  
+
+---
+
+#### **Step 3: Molecular Property Extraction**  
+6. **Molecular Formula Calculation**: Derive molecular formulas from canonical SMILES.  
+7. **Molecular Weight Calculation**: Compute molecular weights from molecular formulas.  
+
+####python
+FOR each compound IN data:
+    compound.MolecularFormula = GetMolecularFormula(compound.SMILES)
+    compound.MolecularWeight = CalculateMolecularWeight(compound.MolecularFormula)
+
+8. **Elemental Composition Analysis**: Extract the number of unique elements in each species and compute their proportions.  
+
+####python
+FOR each compound IN data:
+    compound.ElementPercentages = CalculateElementPercentages(compound.MolecularFormula)
+
+---
+
+#### **Step 4: Data Cleaning and Structural Integrity Check**  
+9. **Sort by Molecular Weight**: Arrange species in ascending order of molecular weight.  
+10. **Remove Charged Species**: Filter out ions and charged molecules to ensure consistency with the neutral species dataset.  
+11. **Remove Duplicates and Isomers**: Identify and eliminate structurally redundant entries.  
+
+####python
+data = SortByMolecularWeight(data)
+data = RemoveChargedSpecies(data)
+data = RemoveDuplicates(data)
+
+---
+
+#### **Step 5: Structural and Functional Analysis**  
+12. **Radical and Non-Radical Classification**: Determine the percentage of radicals in the dataset using unpaired electron detection.  
+13. **Parameter Correlation Analysis**: Compute a correlation matrix between thermochemical properties and molecular descriptors.  
+14. **Functional Group Identification**: Detect functional groups using predefined SMARTS patterns.  
+15. **Atomic Composition Analysis**: Count occurrences of different atomic elements across species.  
+
+####python
+radicalsPercentage = CalculateRadicalsPercentage(data)
+correlationMatrix = CalculateCorrelationMatrix(data)
+functionalGroups = IdentifyFunctionalGroups(data)
+atomCounts = CountAtoms(data)
+
+---
+
+### **Key Functions and Their Implementations**
+| Function | Description |
+|----------|-------------|
+| `CollateData(sources)` | Aggregates thermochemical data from multiple sources. |
+| `ConvertToCommonUnit(value, unit)` | Converts all thermochemical values to standard units. |
+| `ConvertToCanonicalSMILES(smiles)` | Uses OpenBabel/RDKit to convert SMILES to a canonical format. |
+| `CanKekulize(smiles)` | Verifies if a SMILES representation can be Kekulized. |
+| `LabelDataset(data)` | Assigns labels and references to the dataset entries. |
+| `GetMolecularFormula(smiles)` | Derives molecular formula from canonical SMILES. |
+| `CalculateMolecularWeight(formula)` | Computes molecular weight based on elemental composition. |
+| `ExtractElements(data)` | Identifies the unique atomic elements in the dataset. |
+| `CalculateElementPercentages(formula)` | Computes the atomic percentage composition. |
+| `SortByMolecularWeight(data)` | Sorts molecules by increasing molecular weight. |
+| `RemoveChargedSpecies(data)` | Filters out ionic species from the dataset. |
+| `RemoveDuplicates(data)` | Eliminates redundant molecular entries. |
+| `CalculateRadicalsPercentage(data)` | Determines the proportion of radical species. |
+| `CalculateCorrelationMatrix(data)` | Computes correlation coefficients between molecular descriptors. |
+| `IdentifyFunctionalGroups(data)` | Detects functional groups using SMARTS pattern matching. |
+| `CountAtoms(data)` | Counts the number of each atomic species in molecules. |
+
+This structured dataset curation ensures consistency, removes ambiguities, and extracts relevant molecular descriptors for machine learning applications in thermochemical predictions.

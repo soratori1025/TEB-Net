@@ -1,0 +1,31 @@
+
+ab_initio_database_rad | scratch_w1-0-0_mon-h_thermo_d5_bh256_ep150_physics_cv0_s0 + scratch_w0-1.5-1_mon-scp_thermo_d5_bh256_ep150_physics_cv0_s0 | n = 442
+                           MAE           95 % CI    RMSE        per fold    ref ref in CI P(MAE<ref)
+  ΔH298 [kJ/mol]          2.17 [  1.90,   2.46]    3.77    2.17 ± 0.58   2.17       yes       0.52
+  S298 [J/(mol K)]        2.80 [  2.55,   3.07]    3.98    2.80 ± 0.46   2.79       yes       0.49
+  Cp300 [J/(mol K)]       1.66 [  1.52,   1.82]    2.29    1.66 ± 0.27   1.65       yes       0.44
+
+  duplicates by InChIKey: 16 groups (33 rows); 15 groups split across outer folds
+    [CH]=CC#C (fold 4) | [CH]=CC#C (fold 5)
+    [CH]=CCC#C (fold 6) | [CH]=CCC#C (fold 1)
+    [CH]=CC#CC (fold 6) | [CH]=CC#CC (fold 8)
+    [CH]=CCC=C (fold 5) | [CH]=CCC=C (fold 9)
+    [CH]=CCCC=C (fold 0) | [CH]=CCCC=C (fold 2)
+    [CH]=CCCCC=C (fold 1) | [CH]=CCCCC=C (fold 6)
+    C/[C]=C\C (fold 0) | C/[C]=C/C (fold 4)
+    C=C[CH]CC=C (fold 0) | C=C[CH]CC=C (fold 7)
+    C=C[CH]CCC=C (fold 7) | C=C[CH]CCC=C (fold 4) | C=C[CH]CCC=C (fold 8)
+    C=CC[CH]/C=C/C (fold 7) | C=CC[CH]/C=C/C (fold 0)
+
+  10 largest ΔH298 errors [kJ/mol]
+  SMILES                                        true      pred   |err| fold
+  C#C/C(C)=C/CCC[CH2]                         388.34    364.96   23.38    2
+  CC#C[C]=CC                                  415.80    438.37   22.56    7
+  CC=C[CH]C                                    86.94    105.44   18.50    2
+  C=[C]C=C                                    309.49    326.29   16.81    5
+  C=C[CH]/C=C/C=C                             232.59    249.28   16.70    1
+  [C]#C/C=C\C                                 574.38    589.18   14.80    4
+  C=C[C](C#CC)C=C                             370.39    384.22   13.83    6
+  C/C=C\CC[C](C)C                             100.38     87.10   13.28    1
+  [CH2]C=C/C=C\C                              194.55    182.07   12.47    7
+  C/C=C\[C](C)/C=C\C                          128.69    116.26   12.43    5

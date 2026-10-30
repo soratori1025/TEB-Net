@@ -25,20 +25,14 @@ import logging
 import os
 import sys
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem.inchi import MolFromInchi, MolToInchi, InchiToInchiKey
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("prepare_dataset")
-
-# ── Constants ──
 SEEDS = [42, 123, 2024, 8888, 9999]
-TRAIN_FRAC = 0.80  # Paper uses 80/20
-
-# Column names in mmc5
+TRAIN_FRAC = 0.80
 SMILES_COL = "Canonical_SMILES"
 HF_COL = "Hf_298.15K_kcal/mol"
 S_COL = "S_298.15K_cal/(molK)"
@@ -52,16 +46,12 @@ CP_COLS = [
     "cp_1500K_cal/(molK)",
 ]
 T_GRID = [300.0, 400.0, 500.0, 600.0, 800.0, 1000.0, 1500.0]
-
-
 def load_mmc5(excel_path: str) -> pd.DataFrame:
     """Load mmc5 Excel file (Supplementary Material 5)."""
     logger.info(f"Loading dataset from {excel_path}")
     df = pd.read_excel(excel_path, sheet_name="therm", engine="openpyxl")
     logger.info(f"  Raw rows: {len(df)}")
     return df
-
-
 def canonicalize_and_clean(df: pd.DataFrame) -> pd.DataFrame:
     """Canonicalize SMILES, remove invalid/charged/duplicate species."""
     valid_rows = []
@@ -70,45 +60,31 @@ def canonicalize_and_clean(df: pd.DataFrame) -> pd.DataFrame:
     n_charged = 0
     n_dup = 0
     n_no_kekulize = 0
-
     for idx, row in df.iterrows():
         smiles = str(row[SMILES_COL]).strip()
-
-        # Parse with RDKit
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:
             n_invalid += 1
             continue
-
-        # Check Kekulization (per paper's mmc7 pseudocode Step 3)
         try:
             Chem.Kekulize(mol, clearAromaticFlags=False)
         except Exception:
             n_no_kekulize += 1
             continue
-
-        # Remove charged species (Step 10)
         charge = Chem.GetFormalCharge(mol)
         if charge != 0:
             n_charged += 1
             continue
-
-        # Canonical SMILES
         canon_smi = Chem.MolToSmiles(mol, canonical=True)
-
-        # Deduplicate by InChIKey (Step 11)
         inchi = MolToInchi(mol)
         if inchi is not None:
             inchikey = InchiToInchiKey(inchi)
         else:
-            inchikey = canon_smi  # fallback
-
+            inchikey = canon_smi
         if inchikey in seen_inchikeys:
             n_dup += 1
             continue
         seen_inchikeys.add(inchikey)
-
-        # Build clean row
         clean_row = {
             "smiles": canon_smi,
             "Hf_298_kcal_mol": float(row[HF_COL]),
@@ -117,26 +93,19 @@ def canonicalize_and_clean(df: pd.DataFrame) -> pd.DataFrame:
         }
         for cp_col, T in zip(CP_COLS, T_GRID):
             clean_row[f"Cp_{T:.0f}_cal_molK"] = float(row[cp_col])
-
-        # Keep metadata
         clean_row["Molecular_Formula"] = str(row.get("Molecular_Formula", ""))
         clean_row["Molecular_Weight"] = float(row.get("Molecular_Weight", 0))
         clean_row["source"] = str(row.get("Source or Reference", ""))
         clean_row["n_C"] = int(row.get("C", 0)) if pd.notna(row.get("C")) else 0
         clean_row["n_H"] = int(row.get("H", 0)) if pd.notna(row.get("H")) else 0
         clean_row["n_O"] = int(row.get("O", 0)) if pd.notna(row.get("O")) else 0
-
         valid_rows.append(clean_row)
-
     logger.info(
         f"  Cleaning: {n_invalid} invalid SMILES, {n_no_kekulize} failed Kekulize, "
         f"{n_charged} charged, {n_dup} duplicates removed"
     )
     logger.info(f"  Clean dataset: {len(valid_rows)} molecules")
-
     return pd.DataFrame(valid_rows)
-
-
 def generate_splits(n_total: int, seeds: list[int], train_frac: float, out_dir: str):
     """Generate 80/20 random train/test splits for multiple seeds.
 
@@ -145,22 +114,17 @@ def generate_splits(n_total: int, seeds: list[int], train_frac: float, out_dir: 
     """
     os.makedirs(out_dir, exist_ok=True)
     all_indices = np.arange(n_total)
-
     for seed in seeds:
         rng = np.random.default_rng(seed)
         perm = rng.permutation(all_indices)
-
         n_train_pool = int(train_frac * n_total)
         train_pool = perm[:n_train_pool].tolist()
         test_idx = perm[n_train_pool:].tolist()
-
-        # Carve validation from train pool (10% of train pool for early stopping)
         n_val = int(0.1 * len(train_pool))
         rng_val = np.random.default_rng(seed + 10007)
         pool_perm = rng_val.permutation(train_pool)
         val_idx = pool_perm[:n_val].tolist()
         train_idx = pool_perm[n_val:].tolist()
-
         split_info = {
             "seed": seed,
             "train_frac": train_frac,
@@ -172,17 +136,13 @@ def generate_splits(n_total: int, seeds: list[int], train_frac: float, out_dir: 
             "val_indices": val_idx,
             "test_indices": test_idx,
         }
-
         split_file = os.path.join(out_dir, f"split_seed_{seed}.json")
         with open(split_file, "w") as f:
             json.dump(split_info, f, indent=2)
-
         logger.info(
             f"  Seed {seed}: {len(train_idx)} train / {len(val_idx)} val / "
             f"{len(test_idx)} test"
         )
-
-
 def main():
     parser = argparse.ArgumentParser(description="Prepare WUDILY-CHO dataset (Bruce et al. 2025)")
     parser.add_argument(
@@ -202,25 +162,15 @@ def main():
         help="Output directory for processed data",
     )
     args = parser.parse_args()
-
-    # Step 1: Load
     df_raw = load_mmc5(args.excel)
-
-    # Step 2-5: Clean
     df_clean = canonicalize_and_clean(df_raw)
-
-    # Step 6: Save processed dataset
     os.makedirs(args.out_dir, exist_ok=True)
     csv_path = os.path.join(args.out_dir, "wudily_cho_processed.csv")
     df_clean.to_csv(csv_path, index=False)
     logger.info(f"Saved processed dataset: {csv_path}")
-
-    # Step 7: Generate splits
     splits_dir = os.path.join(args.out_dir, "splits")
     logger.info(f"Generating {len(SEEDS)} random splits (80/20)...")
     generate_splits(len(df_clean), SEEDS, TRAIN_FRAC, splits_dir)
-
-    # Step 8: Print summary
     print("\n" + "=" * 60)
     print(" WUDILY-CHO Dataset Preparation Summary")
     print("=" * 60)
@@ -233,7 +183,5 @@ def main():
     print(f"  Output: {csv_path}")
     print(f"  Splits: {splits_dir}/")
     print("=" * 60)
-
-
 if __name__ == "__main__":
     main()

@@ -14,10 +14,8 @@ contributes nothing at test time instead of an arbitrary amount.
 """
 from __future__ import annotations
 import numpy as np
-
 R_GAS = 8.314462618
 N_CHEB = 5
-
 def fit_ridge(X: np.ndarray, Y: np.ndarray, lam_rel: float = 1e-3):
     X = np.asarray(X, dtype=np.float64)
     Y = np.asarray(Y, dtype=np.float64)
@@ -40,7 +38,6 @@ def fit_ridge(X: np.ndarray, Y: np.ndarray, lam_rel: float = 1e-3):
     if squeeze:
         return W[:, 0], float(b[0]), resid[:, 0]
     return W, b, resid
-
 def fit_scalar_baseline(X: np.ndarray, y: np.ndarray, lam_rel: float = 1e-3):
     y = np.asarray(y, dtype=np.float64)
     m = np.isfinite(y)
@@ -54,7 +51,6 @@ def fit_scalar_baseline(X: np.ndarray, y: np.ndarray, lam_rel: float = 1e-3):
         "target_std": float(y[m].std()),
         "n": int(m.sum()),
     }
-
 def fit_scalar_baseline_fixed(X: np.ndarray, y: np.ndarray, fixed: np.ndarray, lam_rel: float = 1e-3):
     """Like fit_scalar_baseline, but columns with a finite entry in `fixed` keep that coefficient (in target
     units per unit of the column) and only the other columns are fitted, on y minus the fixed part.
@@ -87,12 +83,9 @@ def fit_scalar_baseline_fixed(X: np.ndarray, y: np.ndarray, fixed: np.ndarray, l
         "n": int(m.sum()),
         "fixed_mask": is_fixed,
     }
-
-# ─── Chebyshev machinery (shared with the model) ─────────────────────────────
 def cheb_vander(T: np.ndarray, lo: float, hi: float, n: int = N_CHEB) -> np.ndarray:
     tau = (2.0 * np.asarray(T, dtype=np.float64) - (lo + hi)) / (hi - lo)
     return np.polynomial.chebyshev.chebvander(tau, n - 1)
-
 def cheb_to_monomial_matrix(lo: float, hi: float, n: int = N_CHEB) -> np.ndarray:
     from numpy.polynomial import Chebyshev, Polynomial
     M = np.zeros((n, n))
@@ -100,7 +93,6 @@ def cheb_to_monomial_matrix(lo: float, hi: float, n: int = N_CHEB) -> np.ndarray
         p = Chebyshev.basis(k, domain=[lo, hi]).convert(kind=Polynomial)
         M[: len(p.coef), k] = p.coef
     return M
-
 def cp_cheb_targets(cp: np.ndarray, T_grid: np.ndarray, t_mid: float, lo: float, hi: float, n: int = N_CHEB):
     cpR = np.asarray(cp, dtype=np.float64) / R_GAS
     T_grid = np.asarray(T_grid, dtype=np.float64)
@@ -116,7 +108,6 @@ def cp_cheb_targets(cp: np.ndarray, T_grid: np.ndarray, t_mid: float, lo: float,
         B = cheb_vander(T_grid[high], t_mid, hi, k_high)
         C[valid, n:n + k_high] = np.linalg.lstsq(B, cpR[valid][:, high].T, rcond=None)[0].T
     return C, valid, (k_low, k_high)
-
 def cp_from_cheb(C: np.ndarray, T_grid: np.ndarray, t_mid: float, lo: float, hi: float, n: int = N_CHEB) -> np.ndarray:
     T_grid = np.asarray(T_grid, dtype=np.float64)
     out = np.zeros((C.shape[0], len(T_grid)))
@@ -126,7 +117,6 @@ def cp_from_cheb(C: np.ndarray, T_grid: np.ndarray, t_mid: float, lo: float, hi:
     if (~low).any():
         out[:, ~low] = C[:, n:] @ cheb_vander(T_grid[~low], t_mid, hi, n).T
     return out * R_GAS
-
 def fit_cp_cheb_baseline(X: np.ndarray, cp: np.ndarray, T_grid: np.ndarray, t_mid: float, lo: float, hi: float, lam_rel: float = 1e-3, n: int = N_CHEB, floor_frac: float = 0.02):
     C, valid, (k_low, k_high) = cp_cheb_targets(cp, T_grid, t_mid, lo, hi, n)
     if valid.sum() < 2:

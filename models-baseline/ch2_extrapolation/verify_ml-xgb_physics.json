@@ -1,0 +1,14 @@
+{
+  "tag": "ml-xgb_physics",
+  "run_dir": "models-baseline/benchmark_results_baselines/ml-xgb_physics/random0/member0_seed0",
+  "max_abs_diff_test_h_pred": 0.0,
+  "max_abs_diff_test_s_pred": 0.0,
+  "max_abs_diff_test_cp_pred": 0.0,
+  "n_test": 501,
+  "max_abs_diff_val_h_pred": 0.0,
+  "max_abs_diff_val_s_pred": 0.0,
+  "max_abs_diff_val_cp_pred": 0.0,
+  "n_val": 449,
+  "max_abs_diff_all": 0.0,
+  "reproduced": true
+}

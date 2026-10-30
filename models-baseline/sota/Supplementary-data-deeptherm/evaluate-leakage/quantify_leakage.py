@@ -5,7 +5,6 @@ from rdkit import Chem
 from rdkit.Chem import AllChem, DataStructs
 from rdkit.Chem.Scaffolds import MurckoScaffold
 from typing import List, Tuple
-
 def generate_murcko_scaffold(smiles):
     try:
         mol = Chem.MolFromSmiles(smiles)
@@ -15,7 +14,6 @@ def generate_murcko_scaffold(smiles):
         return scaffold if scaffold else "acyclic"
     except:
         return "invalid"
-
 def create_butina_split(smiles_list: List[str], cutoff=0.4, train_frac=0.9, seed=42) -> Tuple[List[int], List[int]]:
     from rdkit.ML.Cluster import Butina
     fps = []
@@ -33,10 +31,8 @@ def create_butina_split(smiles_list: List[str], cutoff=0.4, train_frac=0.9, seed
         dists.extend([1.0 - x for x in sims])
     clusters = Butina.ClusterData(dists, nfps, cutoff, isDistData=True)
     clusters = sorted(clusters, key=len, reverse=True)
-    
     train_idx, test_idx = [], []
     rng = np.random.default_rng(seed)
-    
     for cluster in clusters:
         cluster = list(cluster)
         rng.shuffle(cluster)
@@ -45,27 +41,20 @@ def create_butina_split(smiles_list: List[str], cutoff=0.4, train_frac=0.9, seed
             train_idx.extend(orig_cluster)
         else:
             test_idx.extend(orig_cluster)
-            
     return train_idx, test_idx
-
 def create_random_split(n, train_frac=0.9, seed=42):
     rng = np.random.default_rng(seed)
     indices = np.arange(n)
     rng.shuffle(indices)
     split_point = int(n * train_frac)
     return indices[:split_point].tolist(), indices[split_point:].tolist()
-
 def analyze_true_leakage(df, train_idx, test_idx, split_name="Random"):
     train_df = df.iloc[train_idx].copy()
     test_df = df.iloc[test_idx].copy()
-    
-    # 1. Structural Leakage (Tanimoto)
     train_mols = [Chem.MolFromSmiles(s) for s in train_df['smiles']]
     test_mols = [Chem.MolFromSmiles(s) for s in test_df['smiles']]
-    
     train_fps = [AllChem.GetMorganFingerprintAsBitVect(m, 2, nBits=2048) for m in train_mols]
     test_fps = [AllChem.GetMorganFingerprintAsBitVect(m, 2, nBits=2048) for m in test_mols]
-    
     max_sims = []
     closest_train_idx = []
     for test_fp in test_fps:
@@ -73,26 +62,19 @@ def analyze_true_leakage(df, train_idx, test_idx, split_name="Random"):
         max_idx = np.argmax(sims)
         max_sims.append(sims[max_idx])
         closest_train_idx.append(max_idx)
-        
     sims = np.array(max_sims)
     pct_90 = np.mean(sims > 0.90) * 100
     pct_95 = np.mean(sims > 0.95) * 100
     mean_sim = np.mean(sims)
-    
-    # 2. Thermodynamic Leakage (True |Delta H298|)
     test_h298 = test_df['Hf_298.15K_kcal/mol'].values
     train_h298_all = train_df['Hf_298.15K_kcal/mol'].values
     closest_train_h298 = np.array([train_h298_all[idx] for idx in closest_train_idx])
-    
     delta_h = np.abs(test_h298 - closest_train_h298)
-    # Calculate |Delta H| only for those that are near-duplicates (>0.90)
     near_dup_mask = sims > 0.90
     if np.sum(near_dup_mask) > 0:
         mean_delta_h_near_dup = np.mean(delta_h[near_dup_mask])
     else:
         mean_delta_h_near_dup = np.nan
-        
-    # 3. Murcko Scaffold Leakage (Excluding Acyclic)
     train_scaffolds = set(train_df[train_df['murcko'] != 'acyclic']['murcko'].tolist())
     test_scaffolds = test_df[test_df['murcko'] != 'acyclic']['murcko'].tolist()
     if len(test_scaffolds) > 0:
@@ -100,7 +82,6 @@ def analyze_true_leakage(df, train_idx, test_idx, split_name="Random"):
         pct_scaffold_overlap = len(overlap_scaffolds) / len(test_scaffolds) * 100
     else:
         pct_scaffold_overlap = 0.0
-    
     print(f"\n[{split_name} Split] Leakage Report")
     print("-" * 60)
     print(f"Mean Max-Tanimoto: {mean_sim:.4f}")
@@ -110,24 +91,18 @@ def analyze_true_leakage(df, train_idx, test_idx, split_name="Random"):
         print(f"Mean |ΔH298| for Near-Duplicates (>0.90): {mean_delta_h_near_dup:.4f} kcal/mol")
     print(f"Mean |ΔH298| for all Test vs Closest Train: {np.mean(delta_h):.4f} kcal/mol")
     print(f"% Cyclic Test Mols with leaked Scaffold: {pct_scaffold_overlap:.2f}%")
-    
     return sims
-
 if __name__ == "__main__":
     df = pd.read_csv("/home/nvsinh1/brats_segmentation/teb-net-model/paper-consistancy/benchmark-evaluate/deeptherm_data_clean.csv")
     df['murcko'] = df['smiles'].apply(generate_murcko_scaffold)
-    
     print("--- 1. Random Split ---")
     r_train, r_test = create_random_split(len(df), train_frac=0.9, seed=42)
     r_sims = analyze_true_leakage(df, r_train, r_test, "Random")
-    
     print("\n--- 2. Butina Splits ---")
     b4_train, b4_test = create_butina_split(df['smiles'].tolist(), cutoff=0.4, train_frac=0.9, seed=42)
     b4_sims = analyze_true_leakage(df, b4_train, b4_test, "Butina (0.4)")
-    
     b6_train, b6_test = create_butina_split(df['smiles'].tolist(), cutoff=0.6, train_frac=0.9, seed=42)
     b6_sims = analyze_true_leakage(df, b6_train, b6_test, "Butina (0.6)")
-    
     plt.figure(figsize=(10, 6))
     plt.hist(r_sims, bins=50, alpha=0.4, label='Random Split', density=True)
     plt.hist(b6_sims, bins=50, alpha=0.4, label='Butina (0.6)', density=True)

@@ -12,17 +12,12 @@ The vocabulary is built from structures only (no targets), so building it on the
 label information; columns that are rare in a training fold are dropped by the prior fit (min_count).
 """
 from __future__ import annotations
-
 from collections import Counter
 from pathlib import Path
-
 import numpy as np
 from rdkit import Chem
-
 GROUPS_VERSION = "g1.0"
 _BT = Chem.BondType
-
-
 def atom_type(a: Chem.Atom) -> str:
     """Benson-like atom type (no radical flag)."""
     z = a.GetAtomicNum()
@@ -42,7 +37,7 @@ def atom_type(a: Chem.Atom) -> str:
         if n_t:
             return "Ct"
         if n_d >= 2:
-            return "Ca"            # allenic / cumulenic centre (incl. ketene C)
+            return "Ca"
         if n_d == 1:
             return "CO" if d_to_o else "Cd"
         return "Cs"
@@ -55,15 +50,13 @@ def atom_type(a: Chem.Atom) -> str:
     if z == 1:
         return "H"
     return a.GetSymbol()
-
-
 def group_keys(mol: Chem.Mol) -> Counter:
     """Counter of group / ring-correction keys of one molecule."""
     c: Counter = Counter()
     types = {a.GetIdx(): atom_type(a) for a in mol.GetAtoms()}
     for a in mol.GetAtoms():
         t = types[a.GetIdx()]
-        if t in ("Od", "H"):                       # carbonyl O is part of the CO group
+        if t in ("Od", "H"):
             continue
         rad = a.GetNumRadicalElectrons()
         chg = a.GetFormalCharge()
@@ -72,8 +65,6 @@ def group_keys(mol: Chem.Mol) -> Counter:
         n_h = a.GetTotalNumHs(includeNeighbors=True)
         key = "g:" + centre + "".join(f"({x})" for x in nbs) + (f"(H){n_h}" if n_h else "")
         c[key] += 1
-
-    # ring corrections on the true SSSR (shared with the v15 ring counts)
     from tebnet.data.featurizer import sssr_bond_rings
     rings = sssr_bond_rings(mol)
     ring_atoms = []
@@ -90,7 +81,7 @@ def group_keys(mol: Chem.Mol) -> Counter:
         ring_atoms.append(atoms)
         n_o = sum(1 for i in atoms if mol.GetAtomWithIdx(i).GetAtomicNum() == 8)
         n_exo = sum(1 for i in atoms for b in mol.GetAtomWithIdx(i).GetBonds()
-                    if b.GetBondType() == _BT.DOUBLE and not b.IsInRing())      # exocyclic C=C / C=O
+                    if b.GetBondType() == _BT.DOUBLE and not b.IsInRing())
         n_rad = sum(mol.GetAtomWithIdx(i).GetNumRadicalElectrons() for i in atoms)
         size = len(r) if len(r) <= 8 else 9
         kind = "ar" if n_ar == len(r) else f"d{n_d}"
@@ -99,7 +90,6 @@ def group_keys(mol: Chem.Mol) -> Counter:
             c[f"r:{size}_exo{min(n_exo, 2)}"] += 1
         if n_rad:
             c[f"r:{size}_rad"] += 1
-    # how rings are joined
     bond_sets = [set(r) for r in rings]
     for i in range(len(rings)):
         for j in range(i + 1, len(rings)):
@@ -115,8 +105,6 @@ def group_keys(mol: Chem.Mol) -> Counter:
             else:
                 c[f"r:bridged_{a_}_{b_}"] += 1
     return c
-
-
 def build_vocab(counters: list[Counter], min_df: int = 3) -> list[str]:
     """Keys present in at least `min_df` molecules + one 'other' bucket per centre type."""
     df: Counter = Counter()
@@ -125,15 +113,11 @@ def build_vocab(counters: list[Counter], min_df: int = 3) -> list[str]:
     keep = sorted(k for k, v in df.items() if v >= min_df)
     others = sorted({_other_key(k) for k in df if df[k] < min_df})
     return keep + others
-
-
 def _other_key(k: str) -> str:
     if k.startswith("g:"):
         centre = k[2:].split("(")[0]
         return f"g:other_{centre}"
     return "r:other"
-
-
 def counts_matrix(counters: list[Counter], vocab: list[str]) -> np.ndarray:
     idx = {k: i for i, k in enumerate(vocab)}
     X = np.zeros((len(counters), len(vocab)), dtype=np.float32)
@@ -145,13 +129,9 @@ def counts_matrix(counters: list[Counter], vocab: list[str]) -> np.ndarray:
             if j is not None:
                 X[r, j] += v
     return X
-
-
 def groups_cache_path(csv_path) -> Path:
     p = Path(csv_path)
     return p.with_name(f"{p.stem}.groups_{GROUPS_VERSION}.npz")
-
-
 def load_or_compute_groups(csv_path, smiles: list[str], min_df: int = 3) -> tuple[np.ndarray, list[str]]:
     """(counts [n, n_vocab], vocab) for `smiles`, cached next to the CSV."""
     path = groups_cache_path(csv_path)

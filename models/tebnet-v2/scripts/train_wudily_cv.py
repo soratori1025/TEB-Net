@@ -36,7 +36,6 @@ Typical use
 Check the column mapping and the number of molecules printed at start-up (Bruce et al.: 6,074 species).
 """
 from __future__ import annotations
-
 import argparse
 import json
 import logging
@@ -45,17 +44,10 @@ import shutil
 import sys
 import time
 from pathlib import Path
-
 import numpy as np
-
 logger = logging.getLogger("tebnet_wudily")
-
 J_TO_KCAL = 1.0 / 4184.0
 J_TO_CAL = 1.0 / 4.184
-
-# Published test/train metrics of Bruce et al. (2025), Tables 3 and 4, for the comparison printout.
-# Note: in their Table 3 some rows have MAE > RMSE (e.g. MBTR-RF and SOAP-RF training columns), which is
-# impossible, so only the two rows below are quoted.
 PUBLISHED = {
     "CDS-RF (best)": {"H": dict(train_mae=0.82, test_mae=0.84, train_rmse=1.08, test_rmse=1.10, train_r2=0.99),
                       "S": dict(train_mae=0.83, test_mae=0.83, train_rmse=1.09, test_rmse=1.10, train_r2=0.99, test_r2=0.99),
@@ -63,9 +55,6 @@ PUBLISHED = {
     "GNF-MPNN (best graph network)": {"H": dict(train_mae=3.58, test_mae=6.45, train_rmse=5.21, test_rmse=10.19,
                                                 train_r2=0.99)},
 }
-
-
-# ───────────────────────────── folds ─────────────────────────────
 def group_keys(smiles: list[str]) -> list[str]:
     """Canonical SMILES without stereo (radicals kept); falls back to the input string."""
     try:
@@ -77,8 +66,6 @@ def group_keys(smiles: list[str]) -> list[str]:
         m = Chem.MolFromSmiles(s)
         out.append(Chem.MolToSmiles(m, isomericSmiles=False) if m is not None else s.strip())
     return out
-
-
 def grouped_kfold(keys: list[str], k: int, seed: int) -> list[np.ndarray]:
     """k folds of near-equal size; molecules with the same key always share a fold."""
     groups: dict[str, list[int]] = {}
@@ -87,14 +74,12 @@ def grouped_kfold(keys: list[str], k: int, seed: int) -> list[np.ndarray]:
     order = list(groups.values())
     rng = np.random.default_rng(seed)
     rng.shuffle(order)
-    order.sort(key=len, reverse=True)          # place multi-member groups first, then fill evenly
+    order.sort(key=len, reverse=True)
     folds: list[list[int]] = [[] for _ in range(k)]
     for members in order:
         j = min(range(k), key=lambda f: (len(folds[f]), f))
         folds[j].extend(members)
     return [np.array(sorted(f), dtype=int) for f in folds]
-
-
 def load_or_make_folds(path: Path, smiles: list[str], k: int, seed: int) -> list[np.ndarray]:
     if path.exists():
         d = json.loads(path.read_text())
@@ -109,16 +94,11 @@ def load_or_make_folds(path: Path, smiles: list[str], k: int, seed: int) -> list
     logger.info(f"wrote {path}: {k} folds, sizes {[len(f) for f in folds]}, "
                 f"{n_dup} molecules share a canonical SMILES with another one (kept in the same fold)")
     return folds
-
-
 def val_split(pool: np.ndarray, keys: list[str], val_frac: float, member: int, seed: int, fold: int) -> np.ndarray:
     """Validation subset of the training pool for member `member` (grouped, disjoint across members)."""
     n_parts = max(2, int(round(1.0 / val_frac)))
     parts = grouped_kfold([keys[i] for i in pool], n_parts, 1000 * (seed + 1) + fold)
     return np.sort(pool[parts[member % n_parts]])
-
-
-# ───────────────────────────── metrics (pure numpy) ─────────────────────────────
 def mae_rmse_r2(pred, true):
     pred, true = np.asarray(pred, float), np.asarray(true, float)
     m = np.isfinite(pred) & np.isfinite(true)
@@ -128,8 +108,6 @@ def mae_rmse_r2(pred, true):
     ss_tot = np.square(true[m] - true[m].mean()).sum()
     r2 = 1.0 - np.square(e).sum() / ss_tot if ss_tot > 0 else float("nan")
     return float(np.abs(e).mean()), float(np.sqrt(np.square(e).mean())), float(r2)
-
-
 def bruce_metrics(p: dict, t_grid: np.ndarray) -> dict:
     """p in SI units. Returns {prop: (MAE, RMSE, R2)} in kcal/mol and cal/(mol K); Cp = mean over T."""
     out = {"H": mae_rmse_r2(p["h_pred"] * J_TO_KCAL, p["h_true"] * J_TO_KCAL),
@@ -139,14 +117,11 @@ def bruce_metrics(p: dict, t_grid: np.ndarray) -> dict:
     for j, T in enumerate(t_grid):
         out[f"Cp{T:.0f}"] = per_t[j]
     return out
-
-
 def fold_table(per_fold: list[dict], title: str, k: int) -> None:
     """Mean ± s.d. over folds, the way Bruce et al. average their k iterations."""
     def ms(split, prop, i):
         v = np.array([f[split][prop][i] for f in per_fold], float)
         return f"{np.nanmean(v):.2f} ± {np.nanstd(v):.2f}" if len(v) > 1 else f"{v[0]:.2f}"
-
     print(f"\n  {title}  ({len(per_fold)}/{k} folds; mean ± s.d. over folds)")
     print("  | Property | Train MAE | Test MAE | Train RMSE | Test RMSE | Train R² | Test R² | 2 × test RMSE |")
     print("  |---|---|---|---|---|---|---|---|")
@@ -154,8 +129,6 @@ def fold_table(per_fold: list[dict], title: str, k: int) -> None:
         rmse = np.nanmean([f["test"][prop][1] for f in per_fold])
         print(f"  | {label} | {ms('train', prop, 0)} | {ms('test', prop, 0)} | {ms('train', prop, 1)} | "
               f"{ms('test', prop, 1)} | {ms('train', prop, 2)} | {ms('test', prop, 2)} | {2 * rmse:.2f} |")
-
-
 def published_table() -> None:
     print("\n  Published, Bruce et al. (2025) Tables 3–4 (same units; test = averaged over their k folds)")
     print("  | Model | Property | Train MAE | Test MAE | Train RMSE | Test RMSE | Train R² | Test R² | 2 × test RMSE |")
@@ -165,17 +138,12 @@ def published_table() -> None:
             g = lambda key: f"{d[key]:.2f}" if key in d else "–"
             print(f"  | {model} | {prop} | {g('train_mae')} | {g('test_mae')} | {g('train_rmse')} | {g('test_rmse')} | "
                   f"{g('train_r2')} | {g('test_r2')} | {2 * d['test_rmse']:.2f} |")
-
-
-# ───────────────────────────── structural classes (for the error breakdown) ─────────────────────────────
 CLASS_ORDER = ["all", "radical", "closed shell", "contains O", "C/H only", "acyclic", "one ring", "two or more rings",
                "aromatic", "fused aromatic (PAH type)", "two or more non-fused benzene rings", "ring of 8-11 atoms",
                "macrocycle (ring of ≥12 atoms)", "epoxide", "ether (non-epoxide)", "1,2-diol", "vinylogous acid",
                "quaternary carbon (highly branched)", "1-5 heavy atoms", "6-10 heavy atoms", "11-14 heavy atoms",
                "15-19 heavy atoms", "≥20 heavy atoms", "0-2 rotatable bonds", "3-5 rotatable bonds",
                "6 or more rotatable bonds"]
-
-
 def structural_classes(smiles: str) -> set[str]:
     from rdkit import Chem
     from rdkit.Chem import rdMolDescriptors as D
@@ -212,8 +180,6 @@ def structural_classes(smiles: str) -> set[str]:
     r = D.CalcNumRotatableBonds(m)
     c.add("0-2 rotatable bonds" if r <= 2 else "3-5 rotatable bonds" if r <= 5 else "6 or more rotatable bonds")
     return c
-
-
 def class_table(smiles: list[str], p: dict, title: str) -> None:
     """Test MAE per structural class, every molecule counted once (pooled over the folds)."""
     try:
@@ -232,8 +198,6 @@ def class_table(smiles: list[str], p: dict, title: str) -> None:
         if m.sum() == 0:
             continue
         print(f"  | {name} | {int(m.sum())} | {np.nanmean(eh[m]):.2f} | {np.nanmean(es[m]):.2f} | {np.nanmean(ec[m]):.2f} |")
-
-
 def worst_table(smiles: list[str], p: dict, n: int = 15) -> None:
     e = (p["h_pred"] - p["h_true"]) * J_TO_KCAL
     order = np.argsort(-np.abs(e))[:n]
@@ -242,9 +206,6 @@ def worst_table(smiles: list[str], p: dict, n: int = 15) -> None:
     print("  |---|---|---|---|")
     for i in order:
         print(f"  | {smiles[i]} | {p['h_true'][i] * J_TO_KCAL:.2f} | {p['h_pred'][i] * J_TO_KCAL:.2f} | {e[i]:+.2f} |")
-
-
-# ───────────────────────────── loading results ─────────────────────────────
 def load_tag(run_dir: Path):
     files = sorted(run_dir.glob("fold*.npz"))
     if not files:
@@ -260,8 +221,6 @@ def load_tag(run_dir: Path):
     folds = {int(json.loads(str(z["meta"]))["fold"]): z for z in zs}
     return dict(meta=meta, per_fold=per_fold, pooled=pooled, smiles=smiles, idx=idx[o], folds=folds,
                 n_files=len(files))
-
-
 def summarize(args, root: Path) -> None:
     tags = sorted(d for d in root.iterdir() if d.is_dir()) if root.exists() else []
     loaded = {}
@@ -321,9 +280,6 @@ def summarize(args, root: Path) -> None:
             df[f"Cp{T:.0f}_teb_cal"] = p["cp_pred"][:, j] * J_TO_CAL
         df.to_csv(out, index=False, float_format="%.4f")
         print(f"\n  per-molecule test predictions: {out}")
-
-
-# ───────────────────────────── main ─────────────────────────────
 def main():
     ap = argparse.ArgumentParser(description="TEB-Net, k-fold protocol of Bruce et al. (2025) on WUDILY-CHO")
     ap.add_argument("--csv", required=True)
@@ -339,19 +295,16 @@ def main():
                                                           "(default: drop it and list it)")
     ap.add_argument("--out_dir", default="benchmark_results_wudily")
     ap.add_argument("--tag_suffix", default="")
-    # protocol
     ap.add_argument("--k", type=int, default=5, help="number of folds (not stated by Bruce et al.; see docstring)")
     ap.add_argument("--folds", type=int, nargs="*", default=None, help="subset of folds to run")
     ap.add_argument("--cv_seed", type=int, default=0, help="fold assignment (keep fixed across arms)")
     ap.add_argument("--val_frac", type=float, default=0.10, help="validation share of the training folds")
     ap.add_argument("--n_members", type=int, default=1, help="ensemble members per fold (different val subsets)")
     ap.add_argument("--seed", type=int, default=0, help="model initialisation")
-    # arms
     ap.add_argument("--prior_only", action="store_true")
     ap.add_argument("--init_ckpt", default=None)
     ap.add_argument("--summarize", action="store_true")
     ap.add_argument("--combine", nargs=2, metavar=("H_TAG", "SCP_TAG"), default=None)
-    # model / training: the DeepTherm settings of the paper (batch 32, 100 epochs; ~4,900 training molecules)
     ap.add_argument("--loss_weights", type=float, nargs=3, default=[2.0, 1.5, 1.0], metavar=("H", "S", "CP"))
     ap.add_argument("--monitor", choices=["deeptherm", "h", "s", "cp300", "scp"], default="deeptherm")
     ap.add_argument("--atom_featurizer", choices=["chemprop", "radical", "thermo"], default="thermo")
@@ -378,31 +331,26 @@ def main():
     ap.add_argument("--keep_ckpt", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
-
     ds_name = Path(args.csv).stem
     root = Path(args.out_dir) / ds_name
     if args.summarize:
         summarize(args, root)
         return
-
-    # heavy imports only for training (the summary needs numpy, pandas and RDKit only)
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", str(args.gpu))
     import torch
     from torch.utils.data import DataLoader, Subset
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from train_cv import arrays, fit_priors, prior_predict, train_inner   # also sets the project paths
+    from train_cv import arrays, fit_priors, prior_predict, train_inner
     from train import make_atom_featurizer, collect_predictions, COL, DEEPTHERM_T_GRID
     from tebnet.data.dataset import ThermochemDataset
     from tebnet.data.collate import ThermoCollater
     from tebnet.data.featurizer import FEATURES_VERSION
-
     torch.set_float32_matmul_precision("high")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     use_3d = not args.no_3d
     t_grid = DEEPTHERM_T_GRID
     t_mid = args.t_mid
     t_low_dom = float(t_grid[t_grid <= t_mid].min())
-
     mode = "prior" if args.prior_only else ("finetune" if args.init_ckpt else "scratch")
     tag = mode
     if mode != "prior":
@@ -412,7 +360,6 @@ def main():
     tag += f"_{args.baseline}" + ("" if use_3d else "_2d") + f"_k{args.k}_cv{args.cv_seed}_s{args.seed}" + args.tag_suffix
     run_dir = root / tag
     run_dir.mkdir(parents=True, exist_ok=True)
-
     full_ds = ThermochemDataset.from_csv(
         args.csv, T_grid=t_grid, smiles_col=args.smiles_col, physics_cache=args.physics_cache,
         h_col=args.h_col, s_col=args.s_col,
@@ -429,7 +376,6 @@ def main():
                 + (f", {len(dropped)} dropped (listed in {root / 'dropped.txt'})" if dropped else ""))
     if dropped:
         (root / "dropped.txt").write_text("\n".join(dropped) + "\n")
-
     folds = load_or_make_folds(root / f"folds_k{args.k}_cv{args.cv_seed}.json", smiles, args.k, args.cv_seed)
     keys = group_keys(smiles)
     atom_feat = make_atom_featurizer(args.atom_featurizer)
@@ -437,7 +383,6 @@ def main():
     d_v = len(atom_feat) if atom_feat is not None else None
     if use_3d and max(dp.x_physic[COL["moi_valid"]] for dp in dps) < 0.5:
         logger.warning("use_3d=True but no valid 3-D features")
-
     for k in (args.folds if args.folds else range(args.k)):
         out_file = run_dir / f"fold{k}.npz"
         if out_file.exists() and not args.overwrite:
@@ -488,13 +433,10 @@ def main():
                  **{"train_" + key: v for key, v in {**pred["train"], **truth["train"]}.items()},
                  metrics=json.dumps(metrics), meta=json.dumps(meta))
         fold_table([metrics], f"fold {k}: {len(tr_all)} train / {len(te)} test | {time.time() - t0:.0f} s", args.k)
-
     if all((run_dir / f"fold{k}.npz").exists() for k in range(args.k)):
         r = load_tag(run_dir)
         print("\n" + "=" * 100 + f"\n {ds_name} | {tag} | all {args.k} folds\n" + "=" * 100)
         fold_table(r["per_fold"], "Bruce et al. protocol", args.k)
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     main()

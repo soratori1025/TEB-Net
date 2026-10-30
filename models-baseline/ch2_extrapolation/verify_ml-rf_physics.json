@@ -1,0 +1,14 @@
+{
+  "tag": "ml-rf_physics",
+  "run_dir": "models-baseline/benchmark_results_baselines/ml-rf_physics/random0/member0_seed0",
+  "max_abs_diff_test_h_pred": 4.656612873077393e-10,
+  "max_abs_diff_test_s_pred": 2.2737367544323206e-13,
+  "max_abs_diff_test_cp_pred": 5.684341886080801e-13,
+  "n_test": 501,
+  "max_abs_diff_val_h_pred": 4.656612873077393e-10,
+  "max_abs_diff_val_s_pred": 1.1368683772161603e-13,
+  "max_abs_diff_val_cp_pred": 3.410605131648481e-13,
+  "n_val": 449,
+  "max_abs_diff_all": 4.656612873077393e-10,
+  "reproduced": true
+}

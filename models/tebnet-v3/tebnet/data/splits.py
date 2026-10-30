@@ -23,7 +23,6 @@ from collections import defaultdict
 import numpy as np
 from rdkit import Chem
 from rdkit.Chem.Scaffolds import MurckoScaffold
-
 DEEPTHERM_FRACTIONS = (0.81, 0.09, 0.10)
 FUNCTIONAL_GROUP_SMARTS = {
     "Vinyl carbon": "[CX3]=[CX2]",
@@ -54,8 +53,6 @@ FUNCTIONAL_GROUP_SMARTS = {
     "Alkoxy radical": "[O*][CX4]",
     "Carbonyl radical": "[C](=O)*",
 }
-
-# ─────────────────────────── (1) DeepTherm port ───────────────────────────
 def deeptherm_split(smiles, strategy: str = "random", fractions=DEEPTHERM_FRACTIONS, seed: int = 0, test_smarts: str | None = None):
     smiles = list(smiles)
     strategy = {"size": "complexity", "functional_group": "functional-group"}.get(strategy, strategy)
@@ -107,8 +104,6 @@ def deeptherm_split(smiles, strategy: str = "random", fractions=DEEPTHERM_FRACTI
             raise ValueError("Scaffold split produced an empty partition")
         return tuple(np.asarray(b, dtype=np.int64) for b in buckets)
     raise ValueError(f"Unknown split strategy: {strategy}")
-
-# ─────────────────────────── (2) ensemble members ───────────────────────────
 def ensemble_member_split(train_idx, val_idx, test_idx, member: int, seed: int):
     train_idx, val_idx, test_idx = (np.asarray(a, dtype=np.int64) for a in (train_idx, val_idx, test_idx))
     if member == 0:
@@ -118,12 +113,9 @@ def ensemble_member_split(train_idx, val_idx, test_idx, member: int, seed: int):
     rng.shuffle(pool)
     n_val = len(val_idx)
     return pool[n_val:], pool[:n_val], test_idx
-
-# ─────────────────────────── (3) previous TEB-Net protocol ───────────────────────────
 def _num_heavy_atoms(smiles: str) -> int:
     m = Chem.MolFromSmiles(smiles)
     return m.GetNumHeavyAtoms() if m is not None else 0
-
 def _murcko(smiles: str) -> str:
     m = Chem.MolFromSmiles(smiles)
     if m is None:
@@ -132,27 +124,23 @@ def _murcko(smiles: str) -> str:
         return MurckoScaffold.MurckoScaffoldSmiles(mol=m, includeChirality=False)
     except Exception:
         return ""
-
 def _carve_val(pool, seed, frac_val):
     rng = np.random.default_rng(seed + 10007)
     pool = list(pool)
     rng.shuffle(pool)
     n_val = int(frac_val * len(pool))
     return pool[n_val:], pool[:n_val]
-
 def _test_random(n, seed, frac_test):
     rng = np.random.default_rng(seed)
     idx = np.arange(n)
     rng.shuffle(idx)
     n_test = int(frac_test * n)
     return idx[n_test:].tolist(), idx[:n_test].tolist()
-
 def _test_size(smiles_list, frac_test):
     sizes = np.array([_num_heavy_atoms(s) for s in smiles_list])
     order = np.argsort(sizes, kind="stable")
     n_test = int(frac_test * len(smiles_list))
     return order[:-n_test].tolist(), order[-n_test:].tolist()
-
 def _test_scaffold(smiles_list, seed, frac_test):
     groups = defaultdict(list)
     for i, s in enumerate(smiles_list):
@@ -170,7 +158,6 @@ def _test_scaffold(smiles_list, seed, frac_test):
         else:
             test += g
     return pool, test
-
 def make_split(smiles_list, split_type="random", seed=0, frac_test=0.1, frac_val=0.1):
     if split_type == "random":
         pool, test = _test_random(len(smiles_list), seed, frac_test)

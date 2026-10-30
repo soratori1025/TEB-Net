@@ -31,7 +31,6 @@ from tebnet.nn.nasa_thermo import NASA7ThermodynamicLayer
 from tebnet.nn.loss import NASA7ThermoLoss
 from tebnet.data.collate import ThermoBatch
 from tebnet.data.baselines import cheb_to_monomial_matrix, N_CHEB
-
 def _mlp(in_dim: int, out_dim: int, hidden: int, n_layers: int, drop: float) -> nn.Sequential:
     layers: list[nn.Module] = [nn.Linear(in_dim, hidden), nn.ReLU(), nn.Dropout(drop)]
     for _ in range(max(n_layers - 2, 0)):
@@ -41,7 +40,6 @@ def _mlp(in_dim: int, out_dim: int, hidden: int, n_layers: int, drop: float) -> 
     nn.init.xavier_uniform_(last.weight, gain=0.1) 
     nn.init.zeros_(last.bias)
     return nn.Sequential(*layers)
-
 class TEBNetV20(pl.LightningModule):
     def __init__(
         self,
@@ -52,7 +50,6 @@ class TEBNetV20(pl.LightningModule):
         base_h: list[str],
         base_s: list[str],
         base_cp: list[str],
-        # encoder
         mp_hidden_dim: int = 300,
         mp_depth: int = 5,
         mp_dropout: float = 0.1,
@@ -60,26 +57,22 @@ class TEBNetV20(pl.LightningModule):
         batch_norm: bool = True,
         d_v: int | None = None,
         d_e: int | None = None,
-        # branches
         branch_hidden: int = 256,
         branch_layers: int = 2,
         branch_dropout: float = 0.1,
         cp_branch_hidden: int | None = None,
         cp_branch_dropout: float | None = None,
-        # NASA
         t_ref: float = 298.15,
         t_mid: float = 1000.0,
         t_low_dom: float = 300.0,
         t_high_dom: float = 3000.0,
-        cp_param: str = "chebyshev",          # "chebyshev" (v15) | "monomial" (= v14.4 Cp head, for ablation)
-        # loss
+        cp_param: str = "chebyshev",
         loss_type: str = "huber",
         loss_weights: dict[str, float] | None = None,
         weight_strategy: str = "fixed",
         loss_scale_cp: float = 1.0,
         loss_scale_h: float = 1.0,
         loss_scale_s: float = 1.0,
-        # optimiser
         warmup_epochs: int = 3,
         init_lr: float = 1e-4,
         max_lr: float = 8e-4,
@@ -95,7 +88,6 @@ class TEBNetV20(pl.LightningModule):
             if missing:
                 raise ValueError(f"feature(s) {missing} not in feature_names")
             return torch.tensor([name_to_idx[n] for n in names], dtype=torch.long)
-        # index buffers are derived from hparams -> not stored in the checkpoint
         for key, names in [("route_h", route_h), ("route_s", route_s), ("route_cp", route_cp),
                            ("base_h", base_h), ("base_s", base_s), ("base_cp", base_cp)]:
             self.register_buffer(f"{key}_idx", _idx(names), persistent=False)
@@ -103,7 +95,6 @@ class TEBNetV20(pl.LightningModule):
         self.aux_clip = aux_clip
         self.register_buffer("aux_mean", torch.zeros(D))
         self.register_buffer("aux_std", torch.ones(D))
-        # frozen baselines (filled by set_baselines(); float64 for precision)
         f64 = torch.float64
         self.register_buffer("base_h_w", torch.zeros(len(base_h), dtype=f64))
         self.register_buffer("base_h_b", torch.zeros((), dtype=f64))
@@ -114,9 +105,6 @@ class TEBNetV20(pl.LightningModule):
         self.register_buffer("base_cp_w", torch.zeros(len(base_cp), 2 * N_CHEB, dtype=f64))
         self.register_buffer("base_cp_b", torch.zeros(2 * N_CHEB, dtype=f64))
         self.register_buffer("cp_coef_std", torch.ones(2 * N_CHEB, dtype=f64))
-        # Output-coefficient -> NASA monomial maps (deterministic from hparams).
-        #   chebyshev: exact basis change, well conditioned.
-        #   monomial : diag(1, 1e-3, …, 1e-12) = the v14.4 head (set Cp baseline to 0, std to 1).
         if cp_param == "chebyshev":
             M_low = cheb_to_monomial_matrix(t_low_dom, t_mid)
             M_high = cheb_to_monomial_matrix(t_mid, t_high_dom)
@@ -126,7 +114,6 @@ class TEBNetV20(pl.LightningModule):
             raise ValueError(f"cp_param must be 'chebyshev' or 'monomial', got {cp_param!r}")
         self.register_buffer("M_low", torch.tensor(M_low, dtype=f64), persistent=False)
         self.register_buffer("M_high", torch.tensor(M_high, dtype=f64), persistent=False)
-        # ── D-MPNN encoder ──
         mp_kwargs = dict(d_h=mp_hidden_dim, depth=mp_depth, dropout=mp_dropout)
         if d_v is not None:
             mp_kwargs["d_v"] = d_v
@@ -136,13 +123,11 @@ class TEBNetV20(pl.LightningModule):
         agg_map = {"sum": SumAggregation, "mean": MeanAggregation, "norm": NormAggregation}
         self.agg = agg_map.get(agg_type, SumAggregation)()
         self.bn = nn.BatchNorm1d(mp_hidden_dim) if batch_norm else nn.Identity()
-        # ── routed residual branches ──
         cp_h = cp_branch_hidden or branch_hidden
         cp_d = branch_dropout if cp_branch_dropout is None else cp_branch_dropout
         self.h_branch = _mlp(mp_hidden_dim + len(route_h), 1, branch_hidden, branch_layers, branch_dropout)
         self.s_branch = _mlp(mp_hidden_dim + len(route_s), 1, branch_hidden, branch_layers, branch_dropout)
         self.cp_branch = _mlp(mp_hidden_dim + len(route_cp), 2 * N_CHEB, cp_h, branch_layers, cp_d)
-        # ── analytic NASA-7 layer + loss (unchanged modules) ──
         self.thermo_layer = NASA7ThermodynamicLayer(t_ref=t_ref, t_mid=t_mid)
         lw = loss_weights or {"cp": 1.0, "h298": 2.0, "s298": 1.5}
         self.criterion = NASA7ThermoLoss(
@@ -155,12 +140,10 @@ class TEBNetV20(pl.LightningModule):
         self.max_lr = max_lr
         self.final_lr = final_lr
         self.weight_decay = weight_decay
-
     @torch.no_grad()
     def set_aux_norm(self, mean: np.ndarray, std: np.ndarray) -> None:
         self.aux_mean.copy_(torch.as_tensor(mean, dtype=self.aux_mean.dtype))
         self.aux_std.copy_(torch.as_tensor(std, dtype=self.aux_std.dtype))
-
     @torch.no_grad()
     def set_baselines(self, h: dict, s: dict, cp: dict) -> None:
         f64 = torch.float64
@@ -173,20 +156,16 @@ class TEBNetV20(pl.LightningModule):
         self.base_cp_w.copy_(torch.as_tensor(cp["W"], dtype=f64))
         self.base_cp_b.copy_(torch.as_tensor(cp["b"], dtype=f64))
         self.cp_coef_std.copy_(torch.as_tensor(cp["coef_std"], dtype=f64))
-
-    # ── forward ──
     def encode(self, bmg: BatchMolGraph) -> Tensor:
         H_a = self.message_passing(bmg)
         H_m = self.agg(H_a, bmg.batch)
         return self.bn(H_m)
-
     def baselines(self, x_raw: Tensor) -> tuple[Tensor, Tensor, Tensor]:
         xd = x_raw.double()
         h = xd.index_select(1, self.base_h_idx) @ self.base_h_w + self.base_h_b
         s = xd.index_select(1, self.base_s_idx) @ self.base_s_w + self.base_s_b
         c = xd.index_select(1, self.base_cp_idx) @ self.base_cp_w + self.base_cp_b
         return h, s, c
-
     def forward(self, batch: ThermoBatch) -> dict[str, Tensor]:
         if batch.x_physic is None:
             raise ValueError("TEBNetV15 needs x_physic (dataset with aux_feature_set='v15')")
@@ -204,23 +183,19 @@ class TEBNetV20(pl.LightningModule):
         S298 = s_base + raw_s * self.res_std_s
         c = c_base + raw_c * self.cp_coef_std
         a1_5_low = c[:, :N_CHEB] @ self.M_low.T
-        a1_5_high = c[:, N_CHEB:] @ self.M_high.T     # a1_h is re-derived from continuity in the layer
+        a1_5_high = c[:, N_CHEB:] @ self.M_high.T
         out = self.thermo_layer(a1_5_low, a1_5_high, H298, S298, batch.T_grid)
         return {k: v.float() for k, v in out.items()}
-
     def transfer_batch_to_device(self, batch, device, dataloader_idx):
         if isinstance(batch, ThermoBatch):
             return batch.to(device)
         return super().transfer_batch_to_device(batch, device, dataloader_idx)
-
-    # ── steps ──
     @staticmethod
     def _nanmae(pred: Tensor, target: Tensor) -> Tensor | None:
         m = torch.isfinite(target)
         if m.sum() == 0:
             return None
         return (pred[m] - target[m]).abs().mean()
-
     def _compute_losses(self, batch, log_prefix, prog_bar=False, sample_weights=None):
         preds = self(batch)
         losses = self.criterion(
@@ -235,7 +210,6 @@ class TEBNetV20(pl.LightningModule):
         self.log(f"{log_prefix}/loss_h298", losses["h298"], batch_size=bs)
         self.log(f"{log_prefix}/loss_s298", losses["s298"], batch_size=bs)
         return losses, preds
-
     def _log_maes(self, preds, batch, prefix):
         bs = len(batch)
         for key, p, t in [("cp", preds["cp"], batch.cp_grid),
@@ -244,22 +218,17 @@ class TEBNetV20(pl.LightningModule):
             v = self._nanmae(p, t)
             if v is not None:
                 self.log(f"{prefix}/mae_{key}", v, batch_size=bs)
-
     def training_step(self, batch: ThermoBatch, batch_idx: int) -> Tensor:
         losses, _ = self._compute_losses(batch, "train", prog_bar=True, sample_weights=batch.weights)
         return losses["total"]
-
     def validation_step(self, batch: ThermoBatch, batch_idx: int) -> None:
         _, preds = self._compute_losses(batch, "val", prog_bar=True, sample_weights=batch.weights)
         self._log_maes(preds, batch, "val")
-
     def test_step(self, batch: ThermoBatch, batch_idx: int) -> None:
         _, preds = self._compute_losses(batch, "test")
         self._log_maes(preds, batch, "test")
-
     def predict_step(self, batch: ThermoBatch, batch_idx: int) -> dict[str, Tensor]:
         return self(batch)
-
     def configure_optimizers(self) -> dict:
         optimizer = optim.AdamW(self.parameters(), lr=self.max_lr, weight_decay=self.weight_decay)
         try:

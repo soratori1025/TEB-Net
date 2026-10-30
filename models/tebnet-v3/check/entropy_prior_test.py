@@ -27,21 +27,16 @@ Usage (from the repository root, like check/predict_smiles.py)
   python check/entropy_prior_test.py ... --show_test                 # once, after the decision
 """
 from __future__ import annotations
-
 import argparse
 import sys
 from functools import partial
 from multiprocessing import Pool
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
 R_GAS = 8.314462618
 J_TO_KCAL = 1.0 / 4184.0
 J_TO_CAL = 1.0 / 4.184
-
-
 def setup_paths():
     here = Path(__file__).resolve().parent
     for p in (here, here.parent / "scripts"):
@@ -50,8 +45,6 @@ def setup_paths():
             sys.path.insert(0, str(here))
             return
     raise SystemExit("train.py not found next to this script or in ../scripts")
-
-
 def import_split():
     for mod in ("tebnet.data.splits", "tebnet.splits", "train"):
         try:
@@ -59,8 +52,6 @@ def import_split():
         except (ImportError, AttributeError):
             continue
     raise SystemExit("deeptherm_split not found (tebnet.data.splits / train.py)")
-
-
 def entropy_terms(smiles: list[str], cache: Path, n_conf: int, seed: int, workers: int) -> pd.DataFrame:
     """ENTROPY_V2_NAMES for each SMILES, cached in `cache` (recomputed when the version or n_conf differ)."""
     from tebnet.data.featurizer import ENTROPY_V2_NAMES, ENTROPY_V2_VERSION, entropy_v2_from_smiles
@@ -95,13 +86,9 @@ def entropy_terms(smiles: list[str], cache: Path, n_conf: int, seed: int, worker
     print("  force field used:", out["ff"].value_counts(dropna=False).to_dict(),
           f"| failed embeddings: {int(out['moi2_invalid'].fillna(1).sum())}")
     return out[ENTROPY_V2_NAMES].astype(float)
-
-
 def mae(a, b):
     m = np.isfinite(a) & np.isfinite(b)
     return float(np.abs(a[m] - b[m]).mean())
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv", required=True, help="DeepTherm data CSV (as used by train.py)")
@@ -116,9 +103,8 @@ def main():
     ap.add_argument("--show_test", action="store_true")
     ap.add_argument("--out_dir", default=".")
     args = ap.parse_args()
-
     setup_paths()
-    from train import DEEPTHERM_T_GRID                    # also sets the project paths
+    from train import DEEPTHERM_T_GRID
     from tebnet.data.dataset import ThermochemDataset
     from tebnet.data.featurizer import (V15_NAMES, ENTROPY_V2_NAMES, S_PRIOR_VARIANTS, s_prior_columns,
                                         v15_base_names, compute_v15_vector, entropy_v2_cache_path)
@@ -128,7 +114,6 @@ def main():
     variants = args.variants or list(S_PRIOR_VARIANTS)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-
     t_grid = np.asarray(DEEPTHERM_T_GRID, dtype=np.float64)
     t_mid, t_lo, t_hi = 1000.0, float(t_grid[t_grid <= 1000.0].min()), 3000.0
     ds = ThermochemDataset.from_csv(args.csv, T_grid=t_grid, smiles_col=args.smiles_col, physics_cache="auto",
@@ -144,7 +129,6 @@ def main():
     H = np.array([dp.dh_f_298 for dp in dps], dtype=np.float64)
     S = np.array([dp.s_298 for dp in dps], dtype=np.float64)
     CP = np.stack([dp.cp_grid for dp in dps]).astype(np.float64)
-
     def fit_s(variant, idx):
         cols, fixed_R = s_prior_columns(variant)
         ci = [col[c] for c in cols]
@@ -154,8 +138,6 @@ def main():
         else:
             b = fit_scalar_baseline(X[idx][:, ci], S[idx], args.ridge_lambda)
         return cols, ci, b
-
-    # ── validation (and test) MAE of the S prior on the two DeepTherm splits ──
     rows, coef_rows = [], []
     for strategy in ("random", "complexity"):
         tr, va, te = (np.asarray(a) for a in deeptherm_split(smiles, strategy, seed=args.split_seed))
@@ -177,8 +159,6 @@ def main():
           "S_trans +1, S_rot +1, ½ln I +1, ln σ −1, ln(2S+1) +1, chirality +ln 2 = +0.69). Fixed ones show the "
           "fixed value.\n")
     print(pd.DataFrame(coef_rows).to_string(index=False, float_format=lambda x: f"{x:+.2f}"))
-
-    # ── decision ──
     v2 = [v for v in variants if v.startswith("v2_") and v != "v2_free"]
     if "v1" in variants and v2:
         val = res.pivot(index="variant", columns="split", values="val")
@@ -187,8 +167,6 @@ def main():
         print(f"\nDecision (validation only): best v2 variant = {best}; "
               + ", ".join(f"{c}: v1 {val.loc['v1', c]:.3f} -> {val.loc[best, c]:.3f}" for c in val.columns)
               + f"  =>  {'GO' if go else 'NO-GO'}")
-
-    # ── prior-only predictions on the homologous series (priors fitted on random split 0) ──
     if args.series:
         ser = pd.read_csv(args.series)
         ssmi = ser["smiles"].astype(str).str.strip().tolist()
@@ -207,7 +185,7 @@ def main():
                            "S_cal": (Xs[:, ci1] @ bs1["w"] + bs1["b"]) * J_TO_CAL, "Cp300_cal": cp300 * J_TO_CAL})
         p1.to_csv(out_dir / "preds_prior_v1.csv", index=False, float_format="%.3f")
         spec = []
-        for v in [v for v in variants if v != "v1"]:          # v1 is in preds_prior_v1.csv
+        for v in [v for v in variants if v != "v1"]:
             _, ci, b = fit_s(v, tr)
             f = out_dir / f"preds_prior_S_{v}.csv"
             pd.DataFrame({"smiles": ssmi, "S_cal": (Xs[:, ci] @ b["w"] + b["b"]) * J_TO_CAL}).to_csv(
@@ -222,7 +200,5 @@ def main():
                    props=("S", "H", "Cp300"))
         else:
             print("homologous extrapolation not shown (validation-only run); rerun with --show_test after deciding")
-
-
 if __name__ == "__main__":
     main()

@@ -26,28 +26,19 @@ kept — no early stopping, as in train.py.
   python scripts/baselines_gnn.py --arch attentivefp --targets h   --split_type complexity
 """
 from __future__ import annotations
-
 import argparse
 import copy
 import math
 import random
 import time
-
 import numpy as np
-
 from baseline_common import (
     TARGET_NAMES, add_common_args, dt_to_si, get_split, load_dataset, pred_dict, prepare_run_dir, targets_dt, targets_si,
     write_run,
 )
-
 TARGET_COLS = {"all": list(range(9)), "h": [0], "s": [1], "cp": list(range(2, 9)), "scp": list(range(1, 9))}
-
-
-# ─────────────────────────── featurisation (baseline-only) ───────────────────────────
 def _one_hot(v, choices):
     return [float(v == c) for c in choices] + [float(v not in choices)]
-
-
 def atom_features(a) -> list[float]:
     from rdkit import Chem
     hyb = Chem.rdchem.HybridizationType
@@ -61,8 +52,6 @@ def atom_features(a) -> list[float]:
     f += [float(a.IsInRingSize(k)) for k in range(3, 9)]
     f += [a.GetMass() / 100.0]
     return f
-
-
 def bond_features(b) -> list[float]:
     from rdkit import Chem
     bt = b.GetBondType()
@@ -71,8 +60,6 @@ def bond_features(b) -> list[float]:
     f += [float(b.GetIsConjugated()), float(b.IsInRing())]
     f += [float(b.IsInRingSize(k)) for k in (3, 4, 5, 6)]
     return f
-
-
 def mol_to_graph(mol, y_row: np.ndarray, rid: int):
     import torch
     from torch_geometric.data import Data
@@ -89,14 +76,10 @@ def mol_to_graph(mol, y_row: np.ndarray, rid: int):
                  else torch.zeros((0, n_bond_feat), dtype=torch.float32))
     return Data(x=x, edge_index=edge_index, edge_attr=edge_attr,
                 y=torch.tensor(y_row, dtype=torch.float32).view(1, -1), rid=int(rid))
-
-
-# ─────────────────────────── models ───────────────────────────
 def build_model(args, in_dim: int, edge_dim: int, n_out: int):
     import torch.nn as nn
     import torch.nn.functional as F
     from torch_geometric.nn import GATv2Conv, GCNConv, GINEConv, global_add_pool, global_mean_pool
-
     class Net(nn.Module):
         def __init__(self):
             super().__init__()
@@ -120,7 +103,6 @@ def build_model(args, in_dim: int, edge_dim: int, n_out: int):
                     self.convs.append(conv)
                     self.norms.append(nn.BatchNorm1d(h))
             self.head = nn.Sequential(nn.Linear(h, h), nn.ReLU(), nn.Dropout(args.dropout), nn.Linear(h, n_out))
-
         def forward(self, d):
             if self.arch == "attentivefp":
                 g = self.enc(d.x, d.edge_index, d.edge_attr, d.batch)
@@ -131,11 +113,7 @@ def build_model(args, in_dim: int, edge_dim: int, n_out: int):
                     x = x + F.dropout(F.relu(norm(m)), p=args.dropout, training=self.training)
                 g = global_add_pool(x, d.batch) if args.pool == "sum" else global_mean_pool(x, d.batch)
             return self.head(g)
-
     return Net()
-
-
-# ─────────────────────────── training ───────────────────────────
 def predict(model, loader, device, n_rows: int, n_out: int) -> np.ndarray:
     import torch
     out = np.full((n_rows, n_out), np.nan)
@@ -145,8 +123,6 @@ def predict(model, loader, device, n_rows: int, n_out: int) -> np.ndarray:
             d = d.to(device)
             out[d.rid.cpu().numpy()] = model(d).cpu().numpy()
     return out
-
-
 def main():
     ap = argparse.ArgumentParser(description="PyG GNN baselines under the DeepTherm protocol")
     add_common_args(ap)
@@ -169,32 +145,26 @@ def main():
     args = ap.parse_args()
     if args.arch == "gat" and args.hidden % args.heads:
         raise SystemExit("--hidden must be divisible by --heads for GAT")
-
     import torch
     from torch_geometric.loader import DataLoader
-
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     device = torch.device(("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else args.device)
-
     tag = f"gnn-{args.arch}_{args.targets}_L{args.layers}_d{args.hidden}"
     tag += "_attn" if args.arch == "attentivefp" else f"_{args.pool}"
     tag += args.tag_suffix
-
     data = load_dataset(args)
     tr, va, te, split_name, test_smarts = get_split(args, data["smiles"])
     save_dir = prepare_run_dir(args, tag, split_name)
     print(f"[{tag} | {split_name} | member {args.member} | seed {args.seed}] "
           f"{len(tr)} train / {len(va)} val / {len(te)} test | device {device}")
-
     cols = TARGET_COLS[args.targets]
-    Y = targets_dt(data)                                     # DeepTherm units
+    Y = targets_dt(data)
     mu = np.nanmean(Y[tr][:, cols], axis=0)
     sd = np.nanstd(Y[tr][:, cols], axis=0)
     sd[~np.isfinite(sd) | (sd < 1e-12)] = 1.0
-    Z = (Y[:, cols] - mu) / sd                               # standardised targets (NaN kept)
-
+    Z = (Y[:, cols] - mu) / sd
     graphs = [mol_to_graph(m, Z[i], i) for i, m in enumerate(data["mols"])]
     in_dim, edge_dim = graphs[0].x.shape[1], graphs[0].edge_attr.shape[1]
     gen = torch.Generator().manual_seed(args.seed)
@@ -202,28 +172,23 @@ def main():
                               generator=gen)
     eval_loaders = {k: DataLoader([graphs[i] for i in idx], batch_size=256, shuffle=False)
                     for k, idx in (("train", tr), ("val", va), ("test", te))}
-
     model = build_model(args, in_dim, edge_dim, len(cols)).to(device)
     n_params = sum(p.numel() for p in model.parameters())
     opt = torch.optim.AdamW(model.parameters(), lr=args.max_lr, weight_decay=args.weight_decay)
     steps_per_epoch = max(1, len(train_loader))
     total, warm = args.max_epochs * steps_per_epoch, args.warmup_epochs * steps_per_epoch
     start, floor = args.init_lr / args.max_lr, args.final_lr / args.max_lr
-
     def lr_lambda(step):
         if step < warm:
             return start + (1.0 - start) * step / max(1, warm)
         prog = min(1.0, (step - warm) / max(1, total - warm))
         return floor + (1.0 - floor) * 0.5 * (1.0 + math.cos(math.pi * prog))
-
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda)
-
     def val_score() -> float:
         p = predict(model, eval_loaders["val"], device, len(Y), len(cols))[va] * sd + mu
         t = Y[va][:, cols]
         maes = [np.nanmean(np.abs(p[:, j] - t[:, j])) for j in range(len(cols))]
         return float(np.nanmean(maes))
-
     best, best_state, best_epoch, t0 = float("inf"), None, 0, time.time()
     for epoch in range(1, args.max_epochs + 1):
         model.train()
@@ -247,11 +212,10 @@ def main():
         if epoch == 1 or epoch % 10 == 0 or epoch == args.max_epochs:
             print(f"  epoch {epoch:>3d}  train loss {np.mean(losses):.4f}  val MAE {score:.3f}  "
                   f"(best {best:.3f} @ {best_epoch})")
-    if best_state is None:          # validation MAE never finite: keep the last epoch
+    if best_state is None:
         best_state = copy.deepcopy(model.state_dict())
     model.load_state_dict(best_state)
     torch.save(best_state, save_dir / "best.pt")
-
     P = np.full_like(Y, np.nan)
     for k, idx in (("train", tr), ("val", va), ("test", te)):
         P[idx[:, None], np.asarray(cols)[None, :]] = (
@@ -265,7 +229,5 @@ def main():
                      "early_stopped": False, "best_val_monitor": best,
                      "training_time_sec": round(time.time() - t0, 1),
                      "trained_targets": [TARGET_NAMES[c] for c in cols]})
-
-
 if __name__ == "__main__":
     main()

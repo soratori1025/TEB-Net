@@ -1,0 +1,7 @@
+name,smiles,split
+Q0,[CH3],test
+Q1,[CH2]C,train
+Q2,CO[O],train
+Q3,CCO[O],train
+Q4,[CH]1CCCCC1,train
+Q5,[O]OC1CCCCC1,train

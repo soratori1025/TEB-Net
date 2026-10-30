@@ -2,7 +2,6 @@ from __future__ import annotations
 import torch
 from torch import Tensor, nn
 import torch.nn.functional as F
-
 class NASA7ThermoLoss(nn.Module):
     def __init__(
         self,
@@ -29,7 +28,6 @@ class NASA7ThermoLoss(nn.Module):
             self.register_buffer("w_cp", torch.tensor(float(w_cp)))
             self.register_buffer("w_h298", torch.tensor(float(w_h298)))
             self.register_buffer("w_s298", torch.tensor(float(w_s298)))
-
     def _elementwise(self, pred: Tensor, target: Tensor) -> Tensor:
         if self.loss_type == "mae":
             return (pred - target).abs()
@@ -38,7 +36,6 @@ class NASA7ThermoLoss(nn.Module):
         if self.loss_type == "huber":
             return F.smooth_l1_loss(pred, target, reduction="none")
         raise ValueError(f"Unknown loss type: {self.loss_type}")
-
     def _weighted_mean(
         self,
         pred: Tensor,
@@ -59,7 +56,6 @@ class NASA7ThermoLoss(nn.Module):
         if err.numel() == 0:
             return torch.zeros((), device=pred.device, dtype=pred.dtype, requires_grad=True)
         return (w * err).sum() / w.sum().clamp(min=1e-8)
-
     def forward(
         self,
         pred_cp: Tensor,
@@ -73,7 +69,6 @@ class NASA7ThermoLoss(nn.Module):
         cp_mask = target_cp.isfinite()
         h_mask = target_dh_f.isfinite()
         s_mask = target_s298.isfinite()
-        # Normalize by std to put all properties on comparable scale
         l_cp = self._weighted_mean(
             pred_cp / self.cp_scale, target_cp / self.cp_scale, cp_mask, sample_weights
         )

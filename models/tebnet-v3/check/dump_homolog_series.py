@@ -15,24 +15,18 @@ Usage
 -----
     python check/dump_homolog_series.py <run_dir> [--n 5]
 """
-
 from __future__ import annotations
-
 import argparse
 import glob
 import sys
 from pathlib import Path
-
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
-
 TAGS = (
     "train/loss_total", "train/loss_h298", "train/loss_s298", "train/loss_cp",
     "train/homolog_loss", "train/homolog_pen_h", "train/homolog_pen_s",
     "train/homolog_pen_cp", "train/homolog_r_h", "train/homolog_weight",
     "val/loss_total", "val/mae_h298",
 )
-
-
 def _load(run_dir: str) -> EventAccumulator:
     path = Path(run_dir) / "lightning_logs" / "version_0"
     if not path.is_dir():
@@ -43,20 +37,16 @@ def _load(run_dir: str) -> EventAccumulator:
     ea = EventAccumulator(str(path), size_guidance={"scalars": 0})
     ea.Reload()
     return ea
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run")
     ap.add_argument("--n", type=int, default=5, help="how many head/tail points to print")
     args = ap.parse_args()
-
     ea = _load(args.run)
     present = set(ea.Tags()["scalars"])
     print(f"run: {args.run}")
     print(f"scalar tags: {len(present)}")
-
     for tag in TAGS:
         if tag not in present:
             print(f"\n{tag}: <absent>")
@@ -67,8 +57,6 @@ def main() -> None:
         tail = s[-args.n:]
         print("  head: " + "  ".join(f"({e.step},{e.value:.6g})" for e in head))
         print("  tail: " + "  ".join(f"({e.step},{e.value:.6g})" for e in tail))
-
-    # Cross-check the two homolog summaries at the same steps.
     if "train/homolog_loss" in present and "train/homolog_pen_h" in present:
         tot = {e.step: e.value for e in ea.Scalars("train/homolog_loss")}
         ph = {e.step: e.value for e in ea.Scalars("train/homolog_pen_h")}
@@ -83,7 +71,5 @@ def main() -> None:
             sm = ph[st] + ps[st] + pc[st]
             print(f"{st:>6} {'':>12} {ph[st]:>10.4g} {ps[st]:>10.4g} "
                   f"{pc[st]:>10.4g} {sm:>10.4g} {tot[st]:>13.6g}")
-
-
 if __name__ == "__main__":
     main()

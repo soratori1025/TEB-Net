@@ -28,54 +28,34 @@ Usage
 The printed table is what the "Methods" paragraph should quote; nothing here trains.
 """
 from __future__ import annotations
-
 import argparse
 import sys
 from collections import Counter
 from pathlib import Path
-
 from rdkit import Chem, RDLogger
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from tebnet.data import homologs as H            # noqa: E402
-from tebnet.data.dataset import ThermochemDataset  # noqa: E402
-from tebnet.data.splits import deeptherm_split, DEEPTHERM_FRACTIONS  # noqa: E402
-
-# RDKit chatters about every SMILES it cannot kekulise; irrelevant to the counts.
+from tebnet.data import homologs as H
+from tebnet.data.dataset import ThermochemDataset
+from tebnet.data.splits import deeptherm_split, DEEPTHERM_FRACTIONS
 RDLogger.DisableLog("rdApp.*")
-
-
-# ────────────────────────────── labelling schemes ──────────────────────────────
 def lab_pi(atom: Chem.Atom) -> str:
     """Shipped scheme: element + pi state (``C4``, ``C3``, ``C3b``, ``O4``)."""
     return H.site_class(atom)
-
-
 def lab_hybridization(atom: Chem.Atom) -> str:
     """RDKit hybridization, e.g. ``C3`` sp3, ``C2`` sp2, ``CP`` sp."""
     return f"{atom.GetSymbol()}{atom.GetHybridization().name[-1]}"
-
-
 def lab_hcount(atom: Chem.Atom) -> str:
     """Element + number of attached hydrogens (finer than the pi label)."""
     return f"{atom.GetSymbol()}{atom.GetTotalNumHs()}"
-
-
 def lab_pi_ring(atom: Chem.Atom) -> str:
     """Pi state split by ring membership."""
     return f"{lab_pi(atom)}{'R' if atom.IsInRing() else 'A'}"
-
-
 SCHEMES = {
     "element+pi (shipped)": lab_pi,
     "hybridization": lab_hybridization,
     "element+Hcount": lab_hcount,
     "element+pi+ring": lab_pi_ring,
 }
-
-
-# ────────────────────────────── pair enumeration ──────────────────────────────
 def enumerate_pairs(smiles: list[str], label_fn, use_filter: bool):
     """All CH2 insertion pairs inside ``smiles``, as ``{(i, j): class_label}``.
 
@@ -90,7 +70,6 @@ def enumerate_pairs(smiles: list[str], label_fn, use_filter: bool):
         mols.append(mol)
         if mol is not None:
             key_to_idx.setdefault(Chem.MolToSmiles(mol, isomericSmiles=False), i)
-
     pairs: dict[tuple[int, int], tuple[Chem.Atom, Chem.Atom]] = {}
     for i, mol in enumerate(mols):
         if mol is None:
@@ -110,21 +89,18 @@ def enumerate_pairs(smiles: list[str], label_fn, use_filter: bool):
             try:
                 prod = rw.GetMol()
                 Chem.SanitizeMol(prod)
-            except Exception:                       # valence / kekulisation failure
+            except Exception:
                 continue
             prod_smi = Chem.MolToSmiles(prod, isomericSmiles=False)
-            if prod_smi in seen:                    # symmetry-equivalent sites
+            if prod_smi in seen:
                 continue
             seen.add(prod_smi)
             j = key_to_idx.get(prod_smi)
-            if j is None or j == i:                 # product absent from the split
+            if j is None or j == i:
                 continue
             pairs.setdefault((i, j), (a1, a2))
-
     return {key: "|".join(sorted([label_fn(a1), label_fn(a2)]))
             for key, (a1, a2) in pairs.items()}
-
-
 def show(name: str, pairs: dict, target: tuple[int, int] | None = None) -> None:
     c = Counter(pairs.values())
     tag = ""
@@ -134,9 +110,6 @@ def show(name: str, pairs: dict, target: tuple[int, int] | None = None) -> None:
     if 0 < len(c) <= 12:
         print("      " + ", ".join(f"{k}:{v}" for k, v in
                                    sorted(c.items(), key=lambda kv: -kv[1])))
-
-
-# ────────────────────────────── main ──────────────────────────────
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -145,7 +118,6 @@ def main() -> int:
     ap.add_argument("--split_fractions", type=float, nargs=3,
                     default=list(DEEPTHERM_FRACTIONS))
     args = ap.parse_args()
-
     print(f"data set: {args.csv}")
     full = ThermochemDataset.from_csv(
         args.csv, strict=True, compute_aux=False, compute_comp=False,
@@ -153,7 +125,6 @@ def main() -> int:
     records = full.records
     smiles_all = [r["smiles"] for r in records]
     print(f"  {len(records)} species")
-
     tr, va, te = deeptherm_split(smiles_all, "random", tuple(args.split_fractions),
                                  args.split_seed)
     train_key = f"train (seed {args.split_seed})"
@@ -163,16 +134,12 @@ def main() -> int:
         "full data set": smiles_all,
     }
     print(f"  train/val/test = {len(tr)}/{len(va)}/{len(te)}")
-
     print("\n1. Insertion filter (shipped element+pi labels)")
     for scope, smis in scopes.items():
         for use_filter in (False, True):
             kind = "filtered" if use_filter else "raw     "
             show(f"{scope} [{kind}]", enumerate_pairs(smis, lab_pi, use_filter),
                  target=(1234, 12))
-
-    # The locked figure is a *pair* count, so test the decomposition directly: raw
-    # insertions minus the classes the filter rejects inside a functional group.
     print("\n2. Decomposing the 1,234-pair figure (train split, raw insertions)")
     raw = enumerate_pairs(scopes[train_key], lab_pi, False)
     print(f"  raw insertions                     pairs={len(raw):5d}")
@@ -181,11 +148,9 @@ def main() -> int:
         after = {k: v for k, v in raw.items() if v != cls}
         print(f"  minus {cls:12s} (n={raw_counts[cls]:4d})          pairs={len(after):5d}"
               f"  classes={len(Counter(after.values())):3d}")
-
     print("\n3. Site-class granularity on the filtered pair set")
     for name, fn in SCHEMES.items():
         show(name, enumerate_pairs(scopes[train_key], fn, True), target=(1234, 12))
-
     print("\n4. What the shipped builder reports (authoritative)")
     table = H.build_homolog_pairs(ThermochemDataset([records[i] for i in tr]))
     print(f"  {table.summary()}")
@@ -198,12 +163,8 @@ def main() -> int:
               f"dS={inc[k, 1] / 4.184:+6.2f} cal/mol/K  "
               f"dCp={inc[k, 2] / 4.184:+6.2f} cal/mol/K  "
               f"tol={tol[k, 0] / 4184.0:.2f}/{tol[k, 1] / 4.184:.2f}/{tol[k, 2] / 4.184:.2f}")
-
     print("\nNote: scripts/train.py logs exactly the section-4 numbers, so any figure "
           "quoted in the manuscript must match them unless the filter or the labels change.")
     return 0
-
-
 if __name__ == "__main__":
     raise SystemExit(main())
-

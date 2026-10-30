@@ -1,5 +1,4 @@
 import pandas as pd
-
 alkanes = {
     5: ("Pentane", "109-66-0"),
     6: ("Hexane", "110-54-3"),
@@ -14,7 +13,6 @@ alkanes = {
     15: ("Pentadecane", "629-62-9"),
     16: ("Hexadecane", "544-76-3"),
 }
-
 for n, (name, cas) in alkanes.items():
     url = f"https://webbook.nist.gov/cgi/cbook.cgi?ID=C{cas.replace('-', '')}&Units=SI&Mask=1"
     try:
@@ -30,4 +28,3 @@ for n, (name, cas) in alkanes.items():
                     break
     except Exception as e:
         print(f"Error for {n} {name}")
-

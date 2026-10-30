@@ -23,31 +23,22 @@ Usage
    with 9, are left out of the C6 BDE correlation)
 """
 from __future__ import annotations
-
 import argparse
 from collections import defaultdict
-
 import pandas as pd
 from rdkit import Chem, RDLogger
-
 RDLogger.DisableLog("rdApp.*")
-
-try:                                   # use the featurizer's own classifier when it is importable
+try:
     from tebnet.data.featurizer import radical_center_type
-
     def is_aryl_centre(a) -> bool:
         return a.GetNumRadicalElectrons() > 0 and radical_center_type(a) == "rad_aryl"
     SOURCE = "tebnet.data.featurizer.radical_center_type"
-except ImportError:                    # same rule as radical_center_type: aromatic C with radical electrons
+except ImportError:
     radical_center_type = None
-
     def is_aryl_centre(a) -> bool:
         return a.GetNumRadicalElectrons() > 0 and a.GetAtomicNum() == 6 and a.GetIsAromatic()
     SOURCE = "built-in copy of the rad_aryl rule (tebnet not on PYTHONPATH)"
-
-MIN_CENTRES = 20   # radical types with fewer centres are reported but left out of the BDE correlation (C6)
-
-
+MIN_CENTRES = 20
 def count_all_types(smiles: pd.Series) -> None:
     """Centres and molecules per radical_center_type over the whole CSV: how many data points support each
     rad_* coefficient of the ΔH prior (the prior is fitted on the 81 % train split, so ~0.81 × these)."""
@@ -74,8 +65,6 @@ def count_all_types(smiles: pd.Series) -> None:
     for key in sorted(centres, key=lambda k: -centres[k]):
         n = centres[key]
         print(f"| {key} | {n} | {mols[key]} | {round(0.81 * n)} | {'yes' if n >= MIN_CENTRES else 'no (too few)'} |")
-
-
 def smiles_column(df: pd.DataFrame, name: str | None) -> str:
     if name:
         return name
@@ -83,8 +72,6 @@ def smiles_column(df: pd.DataFrame, name: str | None) -> str:
         if str(c).strip().lower() in ("smiles", "smile", "canonical_smiles"):
             return c
     raise SystemExit(f"no SMILES column found; pass --smiles_col. Columns: {list(df.columns)}")
-
-
 def classify(mol: Chem.Mol, a: Chem.Atom) -> tuple[str, bool]:
     """(category, fused) for one rad_aryl atom."""
     rings = [r for r in mol.GetRingInfo().AtomRings()
@@ -107,8 +94,6 @@ def classify(mol: Chem.Mol, a: Chem.Atom) -> tuple[str, bool]:
     if len(ring) == 5 and n_o >= 1:
         return "furanyl-type (5-ring with O)", fused
     return f"other ({len(ring)}-ring, {n_o} O)", fused
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", required=True, help="dataset the prior was fitted on (DeepTherm CSV)")
@@ -117,7 +102,6 @@ def main():
     ap.add_argument("--all_types", action="store_true",
                     help="instead: count centres of EVERY radical type, to put n beside each coefficient in C6")
     args = ap.parse_args()
-
     df = pd.read_csv(args.csv)
     col = smiles_column(df, args.smiles_col)
     if args.all_types:
@@ -146,7 +130,6 @@ def main():
             polyrad[cat] += n_rad > 1
             if len(examples[cat]) < args.list and s not in examples[cat]:
                 examples[cat].append(s)
-
     total = sum(centres.values())
     print(f"{args.csv}: rad_aryl centres classified with {SOURCE}")
     print(f"{n_mol_any} molecules carry at least one rad_aryl centre; {total} centres in total\n")
@@ -156,7 +139,5 @@ def main():
         n = centres[cat]
         print(f"| {cat} | {n} | {100 * n / max(total, 1):.1f} % | {len(mols[cat])} | {fused[cat]} | "
               f"{polyrad[cat]} | {', '.join(f'`{e}`' for e in examples[cat])} |")
-
-
 if __name__ == "__main__":
     main()

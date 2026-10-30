@@ -1,5 +1,4 @@
 import json, glob
-
 def check_mae(f):
     try:
         with open(f) as fp:
@@ -8,7 +7,6 @@ def check_mae(f):
             print(f"{mae:.2f} in {f}")
     except:
         pass
-
 for f in glob.glob("../tebnet-v1/results/*/*/*/*/*/results.json"):
     check_mae(f)
 for f in glob.glob("../tebnet-v1/results/*/*/*/*/results.json"):

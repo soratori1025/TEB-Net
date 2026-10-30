@@ -12,24 +12,18 @@ Usage
   python check/paper_numbers.py hardware
 """
 from __future__ import annotations
-
 import argparse
 import json
 import platform
 from collections import defaultdict
 from pathlib import Path
-
 import numpy as np
-
-# arguments that identify a run rather than configure the model
 SKIP_ARGS = {"seed", "split_seed", "split_type", "member", "gpu", "out_dir", "csv", "physics_cache", "overwrite",
              "num_workers", "tag_suffix", "test_group", "test_smarts", "split_fractions", "outer_folds"}
-
-
 def cmd_rings(args):
     import pandas as pd
     from rdkit import Chem, RDLogger
-    from tebnet.data.featurizer import sssr_bond_rings      # same ring perception as the prior
+    from tebnet.data.featurizer import sssr_bond_rings
     RDLogger.DisableLog("rdApp.*")
     df = pd.read_csv(args.csv)
     col = args.smiles_col or next(c for c in df.columns if str(c).strip().lower() in ("smiles", "smile"))
@@ -54,8 +48,6 @@ def cmd_rings(args):
     print("|---|---|---|---|")
     for k in labels:
         print(f"| {k} | {rings[k]} | {mols[k]} | {round(0.81 * rings[k])} |")
-
-
 def cmd_runs(args):
     by_tag = defaultdict(list)
     for root in args.runs:
@@ -69,11 +61,9 @@ def cmd_runs(args):
         raise SystemExit(f"no results.json under {args.runs}")
     for tag in sorted(by_tag):
         rs = by_tag[tag]
-
         def stat(key):
             v = np.array([r[key] for r in rs if isinstance(r.get(key), (int, float))], dtype=float)
             return f"{v.mean():.0f} ± {v.std(ddof=1):.0f}" if len(v) > 1 else (f"{v[0]:.0f}" if len(v) else "n/a")
-
         t = np.array([r["training_time_sec"] for r in rs if isinstance(r.get("training_time_sec"), (int, float))])
         print(f"\n### {tag}  ({len(rs)} runs)")
         print(f"- training time per run: {stat('training_time_sec')} s"
@@ -87,8 +77,6 @@ def cmd_runs(args):
             print("- settings: " + ", ".join(f"{k}={v}" for k, v in fixed.items()))
         if varying:
             print("- differs between runs: " + ", ".join(varying))
-
-
 def cmd_hardware(_args):
     cpu = platform.processor() or "?"
     try:
@@ -107,8 +95,6 @@ def cmd_hardware(_args):
             print(f"GPU {i}: {p.name}, {p.total_memory / 2**30:.0f} GB")
     except ImportError:
         print("torch not importable here")
-
-
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -120,7 +106,5 @@ def main():
     sub.add_parser("hardware")
     args = ap.parse_args()
     {"rings": cmd_rings, "runs": cmd_runs, "hardware": cmd_hardware}[args.cmd](args)
-
-
 if __name__ == "__main__":
     main()

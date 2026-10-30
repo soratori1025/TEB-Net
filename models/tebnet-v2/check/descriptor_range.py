@@ -12,15 +12,11 @@ Usage (repository root)
   python check/descriptor_range.py --csv models-baseline/deeptherm_data.csv --series check/homologous_series.csv
 """
 from __future__ import annotations
-
 import argparse
 import sys
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
-
 def setup_paths():
     here = Path(__file__).resolve().parent
     for p in (here, here.parent / "scripts"):
@@ -28,8 +24,6 @@ def setup_paths():
             sys.path.insert(0, str(p))
             return
     raise SystemExit("train.py not found next to this script or in ../scripts")
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv", required=True)
@@ -39,14 +33,12 @@ def main():
     ap.add_argument("--clip", type=float, default=10.0)
     ap.add_argument("--out_csv", default="descriptor_range.csv")
     args = ap.parse_args()
-
     setup_paths()
-    from train import DEEPTHERM_T_GRID                     # also sets the project paths
+    from train import DEEPTHERM_T_GRID
     from rdkit import Chem
     from tebnet.data.dataset import ThermochemDataset
     from tebnet.data.splits import deeptherm_split
     from tebnet.data.featurizer import V15_NAMES, v15_route_names, v15_base_names, compute_v15_vector
-
     ds = ThermochemDataset.from_csv(args.csv, T_grid=DEEPTHERM_T_GRID, smiles_col=args.smiles_col,
                                     physics_cache="auto", strict=True, compute_aux=True, aux_feature_set="v15",
                                     use_3d=True, compute_comp=False)
@@ -54,14 +46,12 @@ def main():
     tr, _, _ = deeptherm_split(smiles, "random", seed=args.split_seed)
     X = np.stack([ds.datapoints[i].x_physic for i in tr]).astype(np.float64)
     mu, sd = X.mean(0), X.std(0)
-    sd[sd < 1e-3] = 1.0                                     # as in train.py
+    sd[sd < 1e-3] = 1.0
     lo, hi = X.min(0), X.max(0)
     col = {n: i for i, n in enumerate(V15_NAMES)}
-
     ser = pd.read_csv(args.series)
     out = ser[ser.in_deeptherm_set == 0].copy()
     Xs = np.stack([compute_v15_vector(Chem.MolFromSmiles(s), use_3d=True) for s in out.smiles]).astype(np.float64)
-
     rows = []
     groups = {f"route {r}": v15_route_names(r, "grouped", True) for r in ("h", "s", "cp")}
     groups.update({f"prior {r}": v15_base_names(r, "physics", True) for r in ("h", "s", "cp")})
@@ -80,7 +70,6 @@ def main():
                          "above": ";".join(above)})
     df = pd.DataFrame(rows)
     df.to_csv(args.out_csv, index=False, float_format="%.2f")
-
     print(f"training split: random {args.split_seed}, {len(tr)} species\n")
     print("### Routed (network) descriptors of the members outside the set\n")
     print("| Series | n | branch | max |z| (feature) | above train max | clipped (|z| > "
@@ -98,7 +87,5 @@ def main():
         first = df[df.above.str.contains(rf"(^|;){a}(;|$)", regex=True)].n_carbon.min()
         print(f"  {a:<14s} train max {hi[col[a]]:.0f}   first exceeded at C{first}")
     print(f"\nwrote {args.out_csv}")
-
-
 if __name__ == "__main__":
     main()

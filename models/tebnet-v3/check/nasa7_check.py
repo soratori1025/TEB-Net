@@ -38,67 +38,46 @@ Usage (ensemble random0, decoupled ΔH / S-Cp models)
       --complete_high --write_dat c5_rmg.dat
 """
 from __future__ import annotations
-
 import argparse
 import json
 import sys
 from pathlib import Path
-
 import numpy as np
-
-R = 8.314462618          # J/(mol K), same constant as the layer
+R = 8.314462618
 J_TO_KCAL = 1.0 / 4184.0
-
-
-# ───────────────────────── NASA-7 in numpy (float64) ─────────────────────────
-# a: (n, 7) coefficients a1..a7; T: (m,) temperatures -> (n, m)
 def cp_r(a, T):
     T = np.asarray(T, dtype=np.float64)
     return a[:, :5] @ np.vstack([T ** k for k in range(5)])
-
-
 def dcp_r(a, T):
     T = np.asarray(T, dtype=np.float64)
     return a[:, 1:5] @ np.vstack([k * T ** (k - 1) for k in range(1, 5)])
-
-
 def h_rt(a, T):
     T = np.asarray(T, dtype=np.float64)
     return a[:, :5] @ np.vstack([T ** k / (k + 1) for k in range(5)]) + a[:, 5:6] / T
-
-
 def s_r(a, T):
     T = np.asarray(T, dtype=np.float64)
     basis = [np.log(T), T, T ** 2 / 2, T ** 3 / 3, T ** 4 / 4]
     return a[:, :5] @ np.vstack(basis) + a[:, 6:7]
-
-
 def piecewise(fn, lo, hi, T, t_mid):
     T = np.asarray(T, dtype=np.float64)
     return np.where(T[None, :] <= t_mid, fn(lo, T), fn(hi, T))
-
-
 def props(lo, hi, T, t_mid):
     """Cp, H, S in J units on T (n, m)."""
     T = np.asarray(T, dtype=np.float64)
     return (R * piecewise(cp_r, lo, hi, T, t_mid),
             R * T[None, :] * piecewise(h_rt, lo, hi, T, t_mid),
             R * piecewise(s_r, lo, hi, T, t_mid))
-
-
 def fill_a6_a7_high(lo, hi, t_mid):
     """a6_h, a7_h from H and S continuity at t_mid (the layer's step (c)); returns a new hi."""
     hi = hi.copy()
     tm = np.array([t_mid])
-    h_mid = h_rt(lo, tm)[:, 0]                       # H/(R t_mid) from the low range
+    h_mid = h_rt(lo, tm)[:, 0]
     s_mid = s_r(lo, tm)[:, 0]
     poly_h = hi[:, :5] @ np.array([t_mid ** k / (k + 1) for k in range(5)])
     poly_s = hi[:, :5] @ np.array([np.log(t_mid), t_mid, t_mid ** 2 / 2, t_mid ** 3 / 3, t_mid ** 4 / 4])
     hi[:, 5] = t_mid * (h_mid - poly_h)
     hi[:, 6] = s_mid - poly_s
     return hi
-
-
 def layer_np(a15_low, a15_high, h298, s298, t_ref, t_mid):
     """numpy replica of NASA7ThermodynamicLayer (cross-check of the torch layer)."""
     n = len(h298)
@@ -111,9 +90,6 @@ def layer_np(a15_low, a15_high, h298, s298, t_ref, t_mid):
     cp_mid = cp_r(lo, [t_mid])[:, 0]
     hi[:, 0] = cp_mid - a15_high[:, 1:5] @ np.array([t_mid ** k for k in range(1, 5)])
     return lo, fill_a6_a7_high(lo, hi, t_mid)
-
-
-# ───────────────────────── physics bounds ─────────────────────────
 def classical_limits(n_atoms, is_linear, n_rotors):
     """(hard bound, RMG-style estimate) of Cp at T -> inf, J/(mol K)."""
     n_atoms = np.asarray(n_atoms, dtype=np.float64)
@@ -122,8 +98,6 @@ def classical_limits(n_atoms, is_linear, n_rotors):
     hard = np.where(mono, 2.5, np.where(lin, 3 * n_atoms - 1.5, 3 * n_atoms - 2.0)) * R
     est = hard - np.where(mono | lin, 0.0, 0.5 * np.asarray(n_rotors, dtype=np.float64)) * R
     return hard, np.maximum(est, np.where(mono, 2.5, np.where(lin, 3.5, 4.0)) * R)
-
-
 def diagnostics(lo, hi, t_mid, t_high, hard, est, t_min=300.0, step=10.0):
     T = np.unique(np.concatenate([np.arange(t_min, t_high + 0.5 * step, step), [t_mid]]))
     cp = R * piecewise(cp_r, lo, hi, T, t_mid)
@@ -139,13 +113,8 @@ def diagnostics(lo, hi, t_mid, t_high, hard, est, t_min=300.0, step=10.0):
         "ratio_est_at_high": np.percentile(cp[:, -1] / est, [5, 50, 95]),
         "cp_high_minus_hard_max": float((cp[:, -1] - hard).max()),
     }
-
-
-# ───────────────────────── consistency checks ─────────────────────────
 def chemkin_round(a):
     return np.vectorize(lambda x: float(f"{x:15.8E}"))(a)
-
-
 def consistency(lo, hi, t_mid, t_ref, t_grid, h_eval, s_eval, cp_eval):
     out = {}
     for name, (l, h) in {"float64": (lo, hi), "Chemkin E15.8": (chemkin_round(lo), chemkin_round(hi))}.items():
@@ -162,7 +131,6 @@ def consistency(lo, hi, t_mid, t_ref, t_grid, h_eval, s_eval, cp_eval):
     d_lo, d_hi = R * dcp_r(lo, tm)[:, 0], R * dcp_r(hi, tm)[:, 0]
     kink = np.abs(d_hi - d_lo)
     rel_kink = kink / np.maximum(np.abs(d_lo), 1e-12)
-    # sanity: dH/dT = Cp, dS/dT = Cp/T inside each range (true for any NASA-7 polynomial)
     ident = 0.0
     for a, T in ((lo, np.linspace(400, t_mid - 100, 9)), (hi, np.linspace(t_mid + 100, 2900, 9))):
         e = 1e-3
@@ -171,9 +139,6 @@ def consistency(lo, hi, t_mid, t_ref, t_grid, h_eval, s_eval, cp_eval):
         cp = R * cp_r(a, T)
         ident = max(ident, np.abs(dH / cp - 1).max(), np.abs(dS * T / cp - 1).max())
     return out, jumps, (np.median(kink), kink.max(), np.median(rel_kink)), ident
-
-
-# ───────────────────────── high-range completion ─────────────────────────
 def complete_high(lo, hi, t_mid, t_data, hard, est, t_high, n_fit=30, scale=1000.0):
     """New high-range coefficients a1..a5 (a6, a7 then from H and S continuity).
 
@@ -198,13 +163,10 @@ def complete_high(lo, hi, t_mid, t_data, hard, est, t_high, n_fit=30, scale=1000
     dcp_mid = dcp_r(lo, [t_mid])[:, 0]
     cp_dat = cp_r(hi, t_data)
     k = np.arange(5)
-
-    def vrow(T):                       # Cp/R = Σ b_k τ^k, τ = T/scale  -> rows (len(T), 5)
+    def vrow(T):
         return (np.asarray(T, dtype=np.float64)[:, None] / scale) ** k
-
-    def drow(T):                       # d(Cp/R)/dT
+    def drow(T):
         return np.where(k > 0, k * (T / scale) ** np.maximum(k - 1, 0), 0.0) / scale
-
     end_as_equality = len(t_data) + 4 <= 5
     hi_new = hi.copy()
     n_flat = 0
@@ -235,29 +197,23 @@ def complete_high(lo, hi, t_mid, t_data, hard, est, t_high, n_fit=30, scale=1000
         b = np.linalg.lstsq(K, rhs, rcond=None)[0][:5]
         hi_new[i, :5] = b / scale ** k
     return fill_a6_a7_high(lo, hi_new, t_mid), n_flat
-
-
-# ───────────────────────── Chemkin writer ─────────────────────────
 def write_dat(path, names, comps, lo, hi, t_low, t_mid, t_high):
     lines = ["THERMO", f"{t_low:10.3f}{t_mid:10.3f}{t_high:10.3f}"]
     for name, comp, l, h in zip(names, comps, lo, hi):
         el = "".join(f"{e:<2s}{c:>3d}" for e, c in list(comp.items())[:4])
-        lines.append(f"{name:<24s}{el:<20s}G{t_low:10.3f}{t_high:10.3f}{t_mid:8.3f}{'':6s}1")   # '1' in col 80
+        lines.append(f"{name:<24s}{el:<20s}G{t_low:10.3f}{t_high:10.3f}{t_mid:8.3f}{'':6s}1")
         lines.append("".join(f"{x:15.8E}" for x in h[:5]) + "    2")
         lines.append("".join(f"{x:15.8E}" for x in (h[5], h[6], l[0], l[1], l[2])) + "    3")
         lines.append("".join(f"{x:15.8E}" for x in l[3:7]) + " " * 15 + "    4")
     lines.append("END")
     Path(path).write_text("\n".join(lines) + "\n")
-
-
-# ───────────────────────── running the checkpoints ─────────────────────────
 def _query_dataset(smiles, t_grid, use_3d):
     """Dataset of arbitrary SMILES with dummy targets (only the inputs are used). Species the featurizer rejects
     are skipped and listed."""
     import logging
     from tebnet.data.dataset import ThermochemDataset
     recs = [{"smiles": s, "Cp": np.ones(len(t_grid), dtype=np.float32), "dH_f_298": 1.0, "S_298": 1.0,
-             "weight": 1.0, "name": s} for s in smiles]           # same keys as the records of from_csv
+             "weight": 1.0, "name": s} for s in smiles]
     ds = ThermochemDataset([], T_grid=t_grid, aux_feature_set="v15", compute_aux=True, use_3d=use_3d)
     lg = logging.getLogger("tebnet.data.dataset")
     level = lg.level
@@ -267,7 +223,7 @@ def _query_dataset(smiles, t_grid, use_3d):
         for r in recs:
             try:
                 sub = ThermochemDataset([r], T_grid=t_grid, aux_feature_set="v15", compute_aux=True, use_3d=use_3d)
-            except Exception as ex:                            # noqa: BLE001 (RDKit / featurizer errors)
+            except Exception as ex:
                 bad.append(f"{r['smiles']} ({type(ex).__name__})")
                 continue
             if not sub.datapoints:
@@ -279,8 +235,6 @@ def _query_dataset(smiles, t_grid, use_3d):
     if bad:
         print(f"  featurizer rejected {len(bad)} species: " + "; ".join(bad[:10]) + (" ..." if len(bad) > 10 else ""))
     return ds
-
-
 def _split_membership(res, csv, smiles_col):
     """canonical SMILES -> 'train' / 'val' / 'test' for the rows of the training CSV used by this run."""
     import pandas as pd
@@ -288,19 +242,15 @@ def _split_membership(res, csv, smiles_col):
     df = pd.read_csv(csv)
     col = smiles_col if smiles_col in df.columns else next(c for c in df.columns
                                                             if str(c).strip().lower() == smiles_col.lower())
-    rec = [str(s).strip() for s in df[col] if not (s is None or (isinstance(s, float) and np.isnan(s)))]   # = records
-
+    rec = [str(s).strip() for s in df[col] if not (s is None or (isinstance(s, float) and np.isnan(s)))]
     def can(s):
         m = Chem.MolFromSmiles(s)
         return Chem.MolToSmiles(m, isomericSmiles=False) if m is not None else s
-
     out = {}
-    for lab in ("test", "val", "train"):                       # train last: it wins if a SMILES is duplicated
+    for lab in ("test", "val", "train"):
         for i in res.get(f"{lab}_indices", []):
             out[can(rec[i])] = lab
     return out
-
-
 def run_models(run_dirs, csv_override, cache_override, batch_size, query_smiles=None):
     """Layer inputs (float64, captured with a forward hook) and evaluated outputs (as scored) per run.
     query_smiles: run on these species instead of the run's test set."""
@@ -311,11 +261,10 @@ def run_models(run_dirs, csv_override, cache_override, batch_size, query_smiles=
             break
     import torch
     from torch.utils.data import DataLoader
-    from train import make_atom_featurizer, morgan_bits, COL   # also sets the project paths
+    from train import make_atom_featurizer, morgan_bits, COL
     from tebnet.data.dataset import ThermochemDataset
     from tebnet.data.collate import ThermoCollater
     from tebnet.models.tebnet import TEBNetV20
-
     loaders, runs = {}, []
     for rd in run_dirs:
         rd = Path(rd)
@@ -342,7 +291,7 @@ def run_models(run_dirs, csv_override, cache_override, batch_size, query_smiles=
                                        compute_aux=True, use_3d=use_3d)
             else:
                 ds = _query_dataset(query_smiles, t_grid, use_3d)
-            if s_prior != "v1":                                   # same column order as train.py
+            if s_prior != "v1":
                 from tebnet.data.featurizer import load_or_compute_entropy_v2, entropy_v2_cache_path
                 cache_p = entropy_v2_cache_path(csv) if query_smiles is None else None
                 ent = load_or_compute_entropy_v2([dp.smiles for dp in ds.datapoints], cache_p, a.get("n_conf", 10),
@@ -383,12 +332,40 @@ def run_models(run_dirs, csv_override, cache_override, batch_size, query_smiles=
                      **{k: np.concatenate(v) for k, v in ev.items()}})
         print(f"  loaded {rd} ({len(smiles)} {'test ' if query_smiles is None else ''}molecules)")
     return runs
+AGGREGATOR = "mean"
+def member_mask(h_stack: np.ndarray) -> np.ndarray | None:
+    """Per-species member mask for the trimmed rule, or None for a plain mean.
 
-
-def mean_of(runs, key):
-    return np.mean([r[key] for r in runs], axis=0)
-
-
+    The same members are dropped for every property of a species, and they are chosen from the
+    ΔfH prediction alone (the member with the highest and the member with the lowest ΔfH at that
+    species). One criterion for every output keeps the layer affine on the kept subset, so the
+    exported coefficients still reproduce the aggregated prediction exactly, and it is exactly
+    the rule the tables report for the homologous series.
+    """
+    if AGGREGATOR != "trimmed":
+        return None
+    k, n = h_stack.shape
+    if k < 3:
+        return None
+    mask = np.ones((k, n), dtype=np.float64)
+    lo = np.argmin(h_stack, axis=0)
+    hi = np.argmax(h_stack, axis=0)
+    cols = np.arange(n)
+    mask[lo, cols] = 0.0
+    mask[hi, cols] = 0.0
+    return mask
+def _aggregate(stack: np.ndarray, mask: np.ndarray | None) -> np.ndarray:
+    """Average over members (axis 0) with the rule selected by --agg."""
+    if AGGREGATOR == "mean" or mask is None:
+        return stack.mean(axis=0)
+    if AGGREGATOR == "median":
+        return np.median(stack, axis=0)
+    if AGGREGATOR == "trimmed":
+        w = mask.reshape(mask.shape + (1,) * (stack.ndim - 2))
+        return (stack * w).sum(axis=0) / w.sum(axis=0)
+    raise SystemExit(f"unknown aggregator {AGGREGATOR!r}")
+def mean_of(runs, key, mask=None):
+    return _aggregate(np.stack([r[key] for r in runs]), mask)
 def report(title, lo, hi, meta, h_eval, s_eval, cp_eval, hard, est):
     t_mid, t_ref, t_grid, t_high = meta["t_mid"], 298.15, meta["t_grid"], meta["t_high"]
     rt, jumps, kink, ident = consistency(lo, hi, t_mid, t_ref, t_grid, h_eval, s_eval, cp_eval)
@@ -412,8 +389,6 @@ def report(title, lo, hi, meta, h_eval, s_eval, cp_eval, hard, est):
     print(f"| median T of the first crossing | {dg['first_T_median']:.0f} K |")
     print(f"| Cp decreasing with T somewhere | {dg['decreasing']} ({100 * dg['decreasing'] / n:.1f} %) |")
     print(f"| Cp({t_high:g} K) / Cp_inf estimate, 5th / 50th / 95th pct | {r5:.2f} / {r50:.2f} / {r95:.2f} |")
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--h_runs", nargs="+", required=True, help="run dir(s) of the ΔH (or multitask) model")
@@ -421,13 +396,19 @@ def main():
     ap.add_argument("--csv", default=None)
     ap.add_argument("--physics_cache", default=None)
     ap.add_argument("--batch_size", type=int, default=64)
+    ap.add_argument("--agg", choices=("mean", "trimmed", "median"), default="mean",
+                    help="ensemble rule applied to every averaged quantity. 'trimmed' drops, at "
+                         "each species, the members with the highest and the lowest predicted "
+                         "dHfH and averages the other eight for every property (the rule used in "
+                         "the manuscript); 'median' is for the sensitivity check")
     ap.add_argument("--complete_high", action="store_true")
     ap.add_argument("--write_dat", default=None, help="write the (completed, if asked) NASA-7 blocks here")
     ap.add_argument("--smiles_csv", default=None,
                     help="run on the species of this CSV (column smiles; rows with rank > 0 are skipped) "
                          "instead of the test set")
     args = ap.parse_args()
-
+    global AGGREGATOR
+    AGGREGATOR = args.agg
     query = None
     if args.smiles_csv:
         import pandas as pd
@@ -441,7 +422,7 @@ def main():
     print("S/Cp side:")
     scp_runs = (run_models(args.scp_runs, args.csv, args.physics_cache, args.batch_size, query) if args.scp_runs
                 else h_runs)
-    import torch                                              # paths are set up by run_models (via train.py)
+    import torch
     from tebnet.nn.nasa_thermo import NASA7ThermodynamicLayer
     ref = h_runs[0]
     for r in h_runs + scp_runs:
@@ -450,10 +431,10 @@ def main():
                              f"from {ref['dir']}")
         if r["t_mid"] != ref["t_mid"] or not np.array_equal(r["t_grid"], ref["t_grid"]):
             raise SystemExit(f"{r['dir']} uses another T grid / T_mid")
-
-    # combined layer inputs -> coefficients through the model's own (torch) layer
-    a15_low, a15_high = mean_of(scp_runs, "a15_low"), mean_of(scp_runs, "a15_high")
-    h298, s298 = mean_of(h_runs, "h298"), mean_of(scp_runs, "s298")
+    h_stack = np.stack([r["h298"] for r in h_runs])
+    mask = member_mask(h_stack)
+    a15_low, a15_high = mean_of(scp_runs, "a15_low", mask), mean_of(scp_runs, "a15_high", mask)
+    h298, s298 = mean_of(h_runs, "h298", mask), mean_of(scp_runs, "s298", mask)
     layer = NASA7ThermodynamicLayer(t_ref=298.15, t_mid=ref["t_mid"])
     out = layer(*(torch.from_numpy(x) for x in (a15_low, a15_high, h298, s298)),
                 torch.from_numpy(ref["t_grid"]))
@@ -461,15 +442,14 @@ def main():
     lo_np, hi_np = layer_np(a15_low, a15_high, h298, s298, 298.15, ref["t_mid"])
     print(f"\ntorch layer vs numpy replica: max |Δa| low {np.abs(lo - lo_np).max():.1e}, "
           f"high {np.abs(hi - hi_np).max():.1e}")
-
-    # what was scored: the mean of the members' (float32) outputs
-    h_eval, s_eval, cp_eval = mean_of(h_runs, "h"), mean_of(scp_runs, "s"), mean_of(scp_runs, "cp")
+    h_eval = mean_of(h_runs, "h", mask)
+    s_eval = mean_of(scp_runs, "s", mask)
+    cp_eval = mean_of(scp_runs, "cp", mask)
     hard, est = classical_limits(ref["n_atoms"], ref["lin"], ref["rot"])
     meta = {"t_mid": ref["t_mid"], "t_grid": ref["t_grid"], "t_high": ref["t_high"]}
     print(f"\n{len(h_runs)} ΔH model(s), {len(scp_runs)} S/Cp model(s); T grid {ref['t_grid'].tolist()} K, "
           f"T_mid {ref['t_mid']:g} K, NASA high range to {ref['t_high']:g} K")
     report("TEB-Net NASA-7 as trained", lo, hi, meta, h_eval, s_eval, cp_eval, hard, est)
-
     if args.complete_high:
         t_data = ref["t_grid"][ref["t_grid"] > ref["t_mid"]]
         hi_c, n_flat = complete_high(lo, hi, ref["t_mid"], t_data, hard, est, ref["t_high"])
@@ -487,7 +467,6 @@ def main():
         hi_trained, hi = hi, hi_c
     else:
         hi_trained = None
-
     if args.write_dat:
         from rdkit import Chem
         comps = []
@@ -503,12 +482,12 @@ def main():
         else:
             pos = {s: k for k, s in enumerate(query)}
             names = [f"Q{pos[s]}" for s in ref["smiles"]]
-            seen = {}                                        # train > val > test over all members
+            seen = {}
             for r in h_runs + scp_runs:
                 for s, lab in r["split_of"].items():
                     if ("train", "val", "test").index(lab) < ("train", "val", "test", "none").index(seen.get(s, "none")):
                         seen[s] = lab
-            can = lambda s: Chem.MolToSmiles(Chem.MolFromSmiles(s), isomericSmiles=False)   # noqa: E731
+            can = lambda s: Chem.MolToSmiles(Chem.MolFromSmiles(s), isomericSmiles=False)
             split = [seen.get(can(s), "none") for s in ref["smiles"]]
             print("\nsplit membership of the species: " + ", ".join(f"{k} {split.count(k)}"
                                                                       for k in ("train", "val", "test", "none")))
@@ -517,11 +496,9 @@ def main():
         Path(args.write_dat).with_suffix(".smiles.csv").write_text(
             "name,smiles,split\n" + "\n".join(f"{n},{s},{k}" for n, s, k in zip(names, ref["smiles"], split)) + "\n")
         print(f"\nwrote {len(names)} NASA-7 blocks to {args.write_dat} (+ name→SMILES table)")
-        if hi_trained is not None:      # the uncompleted polynomials too, for the SI figure
+        if hi_trained is not None:
             p = Path(args.write_dat).with_suffix(".as_trained.dat")
             write_dat(p, names, comps, lo, hi_trained, t_low, ref["t_mid"], ref["t_high"])
             print(f"wrote the as-trained (linear high range) blocks to {p}")
-
-
 if __name__ == "__main__":
     main()

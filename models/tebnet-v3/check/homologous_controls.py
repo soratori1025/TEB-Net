@@ -25,36 +25,27 @@ Usage
       --out_csv homologous_controls.csv
 """
 from __future__ import annotations
-
 import argparse
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
-PROPS = {  # prop -> (unit label, suffix of the column names)
+PROPS = {
     "H": ("kcal/mol", "kcal"),
     "S": ("cal/(mol K)", "cal"),
     "Cp300": ("cal/(mol K)", "cal"),
 }
-
-
 def _find_col(df: pd.DataFrame, prop: str) -> str | None:
     suf = PROPS[prop][1]
     for c in (f"{prop}_{suf}", f"teb_{prop}_{suf}", f"pred_{prop}_{suf}"):
         if c in df.columns:
             return c
     return None
-
-
 def load_models(series: pd.DataFrame, preds: list[str]) -> dict[str, pd.DataFrame]:
     """label -> frame aligned with `series` rows, columns H, S, Cp300 (NaN where a model has no value)."""
     models: dict[str, pd.DataFrame] = {}
-
     def from_cols(df, mapping):
         return pd.DataFrame({p: (df[c].to_numpy(float) if c in df.columns else np.nan) for p, c in mapping.items()},
                             index=series.index)
-
     if any(c.startswith("teb_") for c in series.columns):
         models["TEB-Net"] = from_cols(series, {p: f"teb_{p}_{PROPS[p][1]}" for p in PROPS})
     for spec in preds:
@@ -76,8 +67,6 @@ def load_models(series: pd.DataFrame, preds: list[str]) -> dict[str, pd.DataFram
         models[label.strip()] = frame
     models["DeepTherm (published)"] = from_cols(series, {p: f"deeptherm_{p}_{PROPS[p][1]}" for p in PROPS})
     return models
-
-
 def series_stats(series: pd.DataFrame, pred: pd.Series, prop: str) -> list[dict]:
     """Per series: line increment, model increment and MAE from the line over the members outside the set,
     and the absolute error against the reference values (ref_* columns, e.g. NIST for n-hexadecane)."""
@@ -103,8 +92,6 @@ def series_stats(series: pd.DataFrame, pred: pd.Series, prop: str) -> list[dict]
                      "n_ref": int(r_ok.sum()),
                      "mae_ref": float(np.abs(p[r_ok] - ref[r_ok]).mean()) if r_ok.any() else np.nan})
     return rows
-
-
 def report(series: pd.DataFrame, models: dict[str, pd.DataFrame], props=("H", "S", "Cp300")) -> pd.DataFrame:
     long = []
     for prop in props:
@@ -142,8 +129,6 @@ def report(series: pd.DataFrame, models: dict[str, pd.DataFrame], props=("H", "S
             print(f"| {lab} | {prop} | {g.increment.min():+.2f} to {g.increment.max():+.2f} | "
                   f"{g.line_increment.min():+.2f} to {g.line_increment.max():+.2f} | {g.mae_line.mean():.2f} |")
     return df
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--series", required=True)
@@ -161,7 +146,5 @@ def main():
     if args.out_csv:
         df.to_csv(args.out_csv, index=False, float_format="%.3f")
         print(f"\nwrote {Path(args.out_csv)}")
-
-
 if __name__ == "__main__":
     main()

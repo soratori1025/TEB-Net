@@ -9,16 +9,11 @@ Usage
   python check_nasa_file.py deeptherm_nasa.dat [--t_max 3000]
 """
 from __future__ import annotations
-
 import argparse
 import re
-
 import numpy as np
-
 R = 8.314462618
 NUM = re.compile(r"[+-]?\d\.\d+[Ee][+-]\d+")
-
-
 def parse(path):
     lines = open(path).read().splitlines()
     out, i = [], 0
@@ -38,8 +33,6 @@ def parse(path):
         else:
             i += 1
     return out
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("thermo_file")
@@ -77,7 +70,5 @@ def main():
     print(f"| Cp negative somewhere | {pct(neg)} |")
     r = np.percentile(ratio, [5, 50, 95])
     print(f"| Cp(T_max) / limit, 5th / 50th / 95th percentile | {r[0]:.2f} / {r[1]:.2f} / {r[2]:.2f} |")
-
-
 if __name__ == "__main__":
     main()

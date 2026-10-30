@@ -2,7 +2,6 @@ from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.svm import SVR
 from xgboost import XGBRegressor
-
 def get_traditional_model(model_name, random_state=42):
     """
     Factory function for conventional machine learning models from Bruce et al. (2025).

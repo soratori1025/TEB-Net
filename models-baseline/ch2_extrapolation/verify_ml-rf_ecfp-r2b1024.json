@@ -1,0 +1,14 @@
+{
+  "tag": "ml-rf_ecfp-r2b1024",
+  "run_dir": "models-baseline/benchmark_results_baselines/ml-rf_ecfp-r2b1024/random0/member0_seed0",
+  "max_abs_diff_test_h_pred": 5.820766091346741e-10,
+  "max_abs_diff_test_s_pred": 1.1368683772161603e-13,
+  "max_abs_diff_test_cp_pred": 2.2737367544323206e-13,
+  "n_test": 501,
+  "max_abs_diff_val_h_pred": 5.238689482212067e-10,
+  "max_abs_diff_val_s_pred": 1.1368683772161603e-13,
+  "max_abs_diff_val_cp_pred": 1.7053025658242404e-13,
+  "n_val": 449,
+  "max_abs_diff_all": 5.820766091346741e-10,
+  "reproduced": true
+}

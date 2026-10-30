@@ -1,0 +1,8 @@
+{
+  "tag": "dmpnn_chemprop",
+  "checkpoint": "models-baseline/sota/chemprop_repo/chemprop_dmpnn_random/replicate_0/model_0/best.pt",
+  "split": "random0",
+  "test_mae_H": 4.416601227904191,
+  "test_mae_S": 2.210336399201597,
+  "test_mae_Cp300": 1.113308130538922
+}

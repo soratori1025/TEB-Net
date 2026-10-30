@@ -1,25 +1,6 @@
 from __future__ import annotations
 import torch
 from torch import Tensor, nn
-
-# =============================================================================
-# TEB-Net v14.4 — task-specific feature-routing predictor
-#
-# Replaces v14.2's single shared_proj + two trunks with THREE small, heavily
-# regularised branches. Each branch receives the SHARED D-MPNN latent
-# concatenated with only the property-specific global features it needs:
-#
-#     H branch  : [ z_shared ⊕ X_H  ]  -> ΔH_f,298 residual
-#     S branch  : [ z_shared ⊕ X_S  ]  -> S°298 residual
-#     Cp branch : [ z_shared ⊕ X_Cp ]  -> a1..a5 (low, high)  -> NASA thermo layer
-#
-# Everything downstream (composition baselines, the analytic NASA-7 thermo layer
-# that derives a6/a7 and enforces continuity, the multi-task loss) is unchanged
-# from v14.2, so v14.4 vs v14.2 isolates exactly one variable: shared trunk ->
-# routed branches. Branches are deliberately small (hidden 128) and high-dropout
-# (0.3): three heads on ~4500 molecules make overfitting the first risk.
-# =============================================================================
-
 class RoutedNASA7Predictor(nn.Module):
     def __init__(
         self,
@@ -38,9 +19,6 @@ class RoutedNASA7Predictor(nn.Module):
         norm_std_s: float = 1.0,
     ):
         super().__init__()
-        # Residual-mode scale/centre buffers (identical semantics to v14.2):
-        # in composition-baseline mode std_* holds the residual std and mean_* is
-        # unused (a per-sample baseline is supplied at forward time).
         self.register_buffer("mean_h", torch.tensor(norm_mean_h))
         self.register_buffer("std_h", torch.tensor(norm_std_h))
         self.register_buffer("mean_s", torch.tensor(norm_mean_s))
@@ -57,18 +35,16 @@ class RoutedNASA7Predictor(nn.Module):
             return nn.Sequential(*layers)
         self.h_branch = _mlp(shared_dim + n_h_feat, 1, branch_hidden, branch_dropout)
         self.s_branch = _mlp(shared_dim + n_s_feat, 1, branch_hidden, branch_dropout)
-        self.cp_branch = _mlp(shared_dim + n_cp_feat, 10, cp_branch_hidden, cp_branch_dropout)  # a1..a5 low + a1..a5 high
-        # Small init on the NASA output layer (stability with the T^4 scaling).
+        self.cp_branch = _mlp(shared_dim + n_cp_feat, 10, cp_branch_hidden, cp_branch_dropout)
         last = self.cp_branch[-1]
         nn.init.xavier_uniform_(last.weight, gain=0.1)
         nn.init.zeros_(last.bias)
-
     def forward(
         self,
-        shared: Tensor,           # (B, shared_dim)  D-MPNN latent
-        x_h: Tensor,              # (B, n_h_feat)
-        x_s: Tensor,              # (B, n_s_feat)
-        x_cp: Tensor,             # (B, n_cp_feat)
+        shared: Tensor,
+        x_h: Tensor,
+        x_s: Tensor,
+        x_cp: Tensor,
         h_baseline: Tensor | None = None,
         s_baseline: Tensor | None = None,
     ) -> dict[str, Tensor]:

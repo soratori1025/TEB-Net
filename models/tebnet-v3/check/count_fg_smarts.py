@@ -12,22 +12,15 @@ Usage
   python scripts/count_fg_smarts.py --csv data/qm9.csv --ref_csv models-baseline/deeptherm_data.csv
 """
 from __future__ import annotations
-
 import argparse
-
 import pandas as pd
 from rdkit import Chem, RDLogger
-
 RDLogger.DisableLog("rdApp.*")
-
-# same SMARTS as tebnet.data.splits.FUNCTIONAL_GROUP_SMARTS (DeepTherm's data/functional_group.py)
 GROUPS = {
     "Ether group": "[CX4][OX2][CX4]",
     "Epoxide group": "[C]1[O][C]1",
     "Enol group": "[CX3](=C[OX2H])",
 }
-
-
 def smiles_column(df: pd.DataFrame, name: str | None) -> str:
     if name:
         return name
@@ -35,8 +28,6 @@ def smiles_column(df: pd.DataFrame, name: str | None) -> str:
         if str(c).strip().lower() in ("smiles", "smile", "canonical_smiles"):
             return c
     raise SystemExit(f"no SMILES column found; pass --smiles_col. Columns: {list(df.columns)}")
-
-
 def count(path: str, col: str | None) -> tuple[int, int, dict[str, int]]:
     df = pd.read_csv(path)
     col = smiles_column(df, col)
@@ -52,8 +43,6 @@ def count(path: str, col: str | None) -> tuple[int, int, dict[str, int]]:
             if m.HasSubstructMatch(q):
                 hits[g] += 1
     return len(df), n_ok, hits
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", required=True, help="QM9 (or any pretraining set) CSV with SMILES")
@@ -68,7 +57,6 @@ def main():
         from tebnet.data.splits import FUNCTIONAL_GROUP_SMARTS
         GROUPS.clear()
         GROUPS.update(FUNCTIONAL_GROUP_SMARTS)
-
     n, n_ok, hits = count(args.csv, args.smiles_col)
     ref = count(args.ref_csv, args.ref_smiles_col) if args.ref_csv else None
     print(f"{args.csv}: {n} rows, {n_ok} parsed by RDKit" + (f" | reference {args.ref_csv}: {ref[1]} parsed" if ref else ""))
@@ -80,7 +68,5 @@ def main():
         if ref:
             line += f" {ref[2][g]:,} | {100 * ref[2][g] / max(ref[1], 1):.1f} % |"
         print(line)
-
-
 if __name__ == "__main__":
     main()

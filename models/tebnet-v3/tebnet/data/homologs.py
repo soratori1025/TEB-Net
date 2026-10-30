@@ -46,14 +46,11 @@ Design notes
   has been applied to ``dp.x_physic``: the partner items are snapshotted here.
 """
 from __future__ import annotations
-
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Sequence
-
 import numpy as np
 from rdkit import Chem
 import torch
-
 __all__ = [
     "HomologPairTable",
     "HomologPairDataset",
@@ -62,30 +59,14 @@ __all__ = [
     "site_class",
     "build_homolog_pairs",
 ]
-
-# Increment is defined in the direction  partner = anchor + CH2, i.e. longer - shorter.
-# All quantities are SI, matching ThermochemDataset (J/mol and J/(mol K)).
 PROPERTIES: tuple[str, ...] = ("h", "s", "cp")
-
-# Absolute floor on a tolerance, in SI, in the order of PROPERTIES: 0.05 kcal/mol and
-# 0.1 cal/(mol K).  The pooled scale is a *measured* spread, so it is exactly zero when a
-# split's pairs happen to agree perfectly (a tiny or synthetic split, or a class whose
-# members are duplicated).  A zero tolerance would turn a soft constraint into a hard
-# equality and the normalised residual into ~1e9, so the tolerance is floored at the
-# precision of the tabulated data instead.  Never binding on the full DeepTherm split,
-# where the pooled scales are 1.23 kcal/mol, 3.19 and 1.47 cal/(mol K).
 TOL_MIN: np.ndarray = np.array([0.05 * 4184.0, 0.1 * 4.184, 0.1 * 4.184])
-
-
-# ────────────────────────────── site classification ──────────────────────────────
 def _in_pi_system(atom: Chem.Atom) -> bool:
     """True if the atom carries a multiple bond or is aromatic."""
     if atom.GetIsAromatic():
         return True
     return any(b.GetBondType() in (Chem.BondType.DOUBLE, Chem.BondType.TRIPLE)
                for b in atom.GetBonds())
-
-
 def _conjugated_heteroatom(atom: Chem.Atom) -> bool:
     """True for a heteroatom that is part of, or conjugated to, a pi system.
 
@@ -100,8 +81,6 @@ def _conjugated_heteroatom(atom: Chem.Atom) -> bool:
     if _in_pi_system(atom):
         return True
     return any(_in_pi_system(nb) for nb in atom.GetNeighbors())
-
-
 def insertion_allowed(a1: Chem.Atom, a2: Chem.Atom) -> bool:
     """Whether CH2 may be inserted into the bond ``a1-a2`` and still be a homologation.
 
@@ -130,8 +109,6 @@ def insertion_allowed(a1: Chem.Atom, a2: Chem.Atom) -> bool:
     if _in_pi_system(a1) and _in_pi_system(a2):
         return False
     return True
-
-
 def site_class(atom: Chem.Atom) -> str:
     """Coarse local environment of an atom: element + pi state.
 
@@ -146,17 +123,12 @@ def site_class(atom: Chem.Atom) -> str:
     if atom.GetIsAromatic():
         return f"{atom.GetSymbol()}3b"
     return f"{atom.GetSymbol()}{'3' if _in_pi_system(atom) else '4'}"
-
-
 def canonical_smiles(smiles: str) -> str | None:
     """Non-isomeric canonical SMILES, used as the molecule key."""
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
     return Chem.MolToSmiles(mol, isomericSmiles=False)
-
-
-# ────────────────────────────── pair enumeration ──────────────────────────────
 def insert_ch2(mol: Chem.Mol) -> list[tuple[str, str]]:
     """All single CH2 insertions into acyclic single bonds of ``mol``.
 
@@ -179,25 +151,22 @@ def insert_ch2(mol: Chem.Mol) -> list[tuple[str, str]]:
         if not insertion_allowed(a1, a2):
             continue
         rw = Chem.RWMol(mol)
-        new_idx = rw.AddAtom(Chem.Atom(6))          # CH2: two implicit H by default
+        new_idx = rw.AddAtom(Chem.Atom(6))
         rw.AddBond(a1.GetIdx(), new_idx, Chem.BondType.SINGLE)
         rw.AddBond(new_idx, a2.GetIdx(), Chem.BondType.SINGLE)
         rw.RemoveBond(a1.GetIdx(), a2.GetIdx())
         try:
             prod = rw.GetMol()
             Chem.SanitizeMol(prod)
-        except Exception:                            # valence / kekulisation failure
+        except Exception:
             continue
         smi = Chem.MolToSmiles(prod, isomericSmiles=False)
-        if smi in seen:                              # symmetry-equivalent sites
+        if smi in seen:
             continue
         seen.add(smi)
         label = "|".join(sorted([site_class(a1), site_class(a2)]))
         out.append((smi, label))
     return out
-
-
-# ────────────────────────────── increment table ──────────────────────────────
 @dataclass
 class HomologPairTable:
     """CH2-homolog constraints for one split, in SI units (J/mol, J/(mol K)).
@@ -217,7 +186,6 @@ class HomologPairTable:
     classes
         Human-readable class labels, in row order of ``increments``.
     """
-
     anchor_idx: np.ndarray
     partner_idx: np.ndarray
     cls_idx: np.ndarray
@@ -227,19 +195,15 @@ class HomologPairTable:
     n_pairs_total: int = 0
     n_pairs_skipped: int = 0
     stats: dict[str, Any] = field(default_factory=dict)
-
     def __len__(self) -> int:
         return int(self.anchor_idx.size)
-
     @property
     def n_classes(self) -> int:
         return len(self.classes)
-
     def class_counts(self) -> dict[str, int]:
         """Number of pairs per insertion-site class."""
         counts = np.bincount(self.cls_idx, minlength=max(self.n_classes, 1))
         return {c: int(n) for c, n in zip(self.classes, counts)}
-
     def tensors(self) -> dict[str, torch.Tensor]:
         """Torch view of the table (long / float32), for collation."""
         return {
@@ -249,7 +213,6 @@ class HomologPairTable:
             "increments": torch.as_tensor(self.increments, dtype=torch.float32),
             "tolerances": torch.as_tensor(self.tolerances, dtype=torch.float32),
         }
-
     def summary(self) -> str:
         """One-line description, for the training log."""
         c = self.class_counts()
@@ -260,7 +223,6 @@ class HomologPairTable:
                 f"over {int(np.unique(self.anchor_idx).size)} anchors"
                 + (f"; {self.n_pairs_skipped} skipped (missing target)"
                    if self.n_pairs_skipped else ""))
-
     def to_json(self) -> dict[str, Any]:
         """Plain-python dump for results.json (kcal / cal for readability)."""
         return {
@@ -283,20 +245,14 @@ class HomologPairTable:
             },
             "stats": dict(self.stats),
         }
-
-
 def _robust_scale(x: np.ndarray) -> float:
     """1.4826 * MAD, falling back to the std for degenerate samples."""
     if x.size < 2:
         return float("nan")
     mad = float(np.median(np.abs(x - np.median(x)))) * 1.4826
     return mad if mad > 0 else float(np.std(x))
-
-
 def _extract_targets(dataset: Sequence[Any], cp_index: int | None):
     """Pull (smiles, dHf, S, Cp(T)) out of the dataset datapoints as float arrays."""
-    # ThermochemDataset.__getitem__ returns a collated *dict*, not the datapoint, so unwrap
-    # the datapoint list when the dataset exposes one.
     items = getattr(dataset, "datapoints", dataset)
     n = len(items)
     smiles = [str(getattr(dp, "smiles", "") or "") for dp in items]
@@ -314,8 +270,6 @@ def _extract_targets(dataset: Sequence[Any], cp_index: int | None):
             if grid.size > cp_index:
                 cp[i] = grid[cp_index]
     return smiles, h, s, cp, cp_index, t_grid
-
-
 def build_homolog_pairs(
     dataset: Sequence[Any],
     n_shrink: float = 5.0,
@@ -358,17 +312,13 @@ def build_homolog_pairs(
         without the regulariser rather than failing.
     """
     smiles, h, s, cp, cp_index, t_grid = _extract_targets(dataset, cp_index)
-
     key_to_idx: dict[str, int] = {}
     mols: list[Chem.Mol | None] = []
     for i, smi in enumerate(smiles):
         mol = Chem.MolFromSmiles(smi) if smi else None
         mols.append(mol)
         if mol is not None:
-            # first occurrence wins; DeepTherm contains no duplicate structures
             key_to_idx.setdefault(Chem.MolToSmiles(mol, isomericSmiles=False), i)
-
-    # ── enumerate pairs (deduplicated; anchor -> longer partner) ──
     pair_of: dict[tuple[int, int], str] = {}
     for i, mol in enumerate(mols):
         if mol is None:
@@ -382,7 +332,6 @@ def build_homolog_pairs(
             n_here += 1
             if max_pairs_per_anchor is not None and n_here >= max_pairs_per_anchor:
                 break
-
     if not pair_of:
         if log:
             log("CH2-homolog prior: no pairs found in this split -> regulariser disabled")
@@ -391,13 +340,10 @@ def build_homolog_pairs(
             anchor_idx=empty, partner_idx=empty.copy(), cls_idx=empty.copy(),
             increments=np.zeros((0, 3)), tolerances=np.zeros((0, 3)), classes=[],
         )
-
     anchors = np.fromiter((a for a, _ in pair_of), dtype=np.int64, count=len(pair_of))
     partners = np.fromiter((p for _, p in pair_of), dtype=np.int64, count=len(pair_of))
     labels = list(pair_of.values())
     n_pairs_total = len(labels)
-
-    # ── increments; drop pairs whose targets are missing ──
     d = np.stack([h[partners] - h[anchors],
                   s[partners] - s[anchors],
                   cp[partners] - cp[anchors]], axis=1)
@@ -405,12 +351,10 @@ def build_homolog_pairs(
     n_skipped = int((~ok).sum())
     anchors, partners, d = anchors[ok], partners[ok], d[ok]
     labels = [lab for lab, keep in zip(labels, ok) if keep]
-
     classes = sorted(set(labels))
     cls_of = {c: k for k, c in enumerate(classes)}
     cls_idx = np.array([cls_of[lab] for lab in labels], dtype=np.int64)
     counts = np.bincount(cls_idx, minlength=len(classes))
-
     glob = np.median(d, axis=0)
     increments = np.empty((len(classes), 3))
     cls_scale = np.full((len(classes), 3), np.nan)
@@ -422,10 +366,6 @@ def build_homolog_pairs(
             cls_scale[k] = [_robust_scale(d[m, q]) for q in range(3)]
         else:
             increments[k] = glob
-
-    # Tolerance: pooled within-class spread (a class with a handful of pairs cannot set
-    # its own tolerance), floored at tol_floor * the global spread, and finally floored at
-    # the absolute TOL_MIN so a degenerate split cannot produce a hard constraint.
     resid = d - increments[cls_idx]
     glob_scale = np.array([_robust_scale(resid[:, q]) for q in range(3)])
     glob_scale = np.where(np.isfinite(glob_scale), glob_scale, 0.0)
@@ -437,12 +377,10 @@ def build_homolog_pairs(
     tolerances = np.tile(np.maximum(pooled, float(tol_floor) * glob_scale), (len(classes), 1))
     tolerances[counts < min_class_pairs] = pooled
     tolerances = np.maximum(np.where(np.isfinite(tolerances), tolerances, 0.0), TOL_MIN)
-
     if cp_index is not None and t_grid.size > cp_index:
         t_at = float(t_grid[cp_index])
     else:
         t_at = 300.0
-
     table = HomologPairTable(
         anchor_idx=anchors, partner_idx=partners, cls_idx=cls_idx,
         increments=increments, tolerances=tolerances, classes=classes,
@@ -473,9 +411,6 @@ def build_homolog_pairs(
     if log:
         log("CH2-homolog prior: " + table.summary())
     return table
-
-
-# ────────────────────────────── paired dataset ──────────────────────────────
 class HomologPairDataset(torch.utils.data.Dataset):
     """Iterate a :class:`HomologPairTable` as ``{anchor, partner, cls_idx}`` items.
 
@@ -503,7 +438,6 @@ class HomologPairDataset(torch.utils.data.Dataset):
         set already gets full coverage; ``repeat`` is for the opposite case (a pair table
         larger than the molecule loader) and for up-weighting the term.
     """
-
     def __init__(self, dataset: Sequence[Any], table: HomologPairTable, repeat: int = 1):
         self.dataset = dataset
         self.table = table
@@ -511,10 +445,8 @@ class HomologPairDataset(torch.utils.data.Dataset):
         self.anchor_idx = np.asarray(table.anchor_idx, dtype=np.int64)
         self.partner_idx = np.asarray(table.partner_idx, dtype=np.int64)
         self.cls_idx = np.asarray(table.cls_idx, dtype=np.int64)
-
     def __len__(self) -> int:
         return int(self.anchor_idx.size) * self.repeat
-
     def __getitem__(self, i: int) -> dict[str, Any]:
         k = i % self.anchor_idx.size if self.anchor_idx.size else 0
         return {
@@ -522,6 +454,3 @@ class HomologPairDataset(torch.utils.data.Dataset):
             "partner": self.dataset[int(self.partner_idx[k])],
             "cls_idx": int(self.cls_idx[k]),
         }
-
-
-

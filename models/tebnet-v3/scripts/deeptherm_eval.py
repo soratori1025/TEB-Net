@@ -18,13 +18,9 @@ import argparse
 import json
 from collections import defaultdict
 from pathlib import Path
-
 import numpy as np
-
 J_TO_KCAL = 1.0 / 4184.0
 J_TO_CAL = 1.0 / 4.184
-
-
 def read_exclude(rows: list[int] | None, path: str | None) -> set[int]:
     """Dataset rows (0-based, = CSV data rows = results.json indices) to drop from every TEST set."""
     out = set(int(r) for r in (rows or []))
@@ -33,8 +29,6 @@ def read_exclude(rows: list[int] | None, path: str | None) -> set[int]:
             line = line.split("#", 1)[0].replace(",", " ")
             out.update(int(tok) for tok in line.split())
     return out
-
-
 def apply_exclude(runs: list[dict], exclude: set[int]) -> None:
     """Removes the excluded rows from the TEST predictions of every run, in place. Validation sets
     (and hence checkpoint choice and ensemble weights) are left as they were during training."""
@@ -58,8 +52,6 @@ def apply_exclude(runs: list[dict], exclude: set[int]) -> None:
             print(f"  [exclude] {sp['type']}{sp['seed']}"
                   + (f" [{sp['test_smarts']}]" if sp.get("test_smarts") else "")
                   + f": {len(removed)} of {len(idx)} test molecules removed {list(removed) if removed else ''}")
-
-
 def load_runs(roots: list[str]) -> list[dict]:
     runs = []
     for root in roots:
@@ -86,15 +78,11 @@ def load_runs(roots: list[str]) -> list[dict]:
                 "val_smiles": [str(x) for x in z["val_smiles"]] if "val_smiles" in z else None,
             })
     return runs
-
-
 def _mae(pred, true, mask=None):
     m = np.isfinite(pred) & np.isfinite(true)
     if mask is not None:
         m = m & mask
     return float(np.mean(np.abs(pred[m] - true[m]))) if m.any() else float("nan")
-
-
 def metrics(p: dict, t_grid: np.ndarray, mask=None) -> dict:
     out = {"H": _mae(p["h_pred"] * J_TO_KCAL, p["h_true"] * J_TO_KCAL, mask),
            "S": _mae(p["s_pred"] * J_TO_CAL, p["s_true"] * J_TO_CAL, mask)}
@@ -107,16 +95,10 @@ def metrics(p: dict, t_grid: np.ndarray, mask=None) -> dict:
     out["mean9"] = float(np.nanmean([out["H"], out["S"], *cps]))
     out["n"] = int(np.sum(mask)) if mask is not None else len(p["h_true"])
     return out
-
-
 def fmt_row(label: str, m: dict, width: int = 34) -> str:
     return (f"  {label:<{width}s} {m['n']:>5d} {m['H']:>8.3f} {m['S']:>8.3f} {m.get('Cp300', float('nan')):>8.3f} "
             f"{m['Cp_mean']:>8.3f} {m['mean9']:>8.3f}")
-
-
 HEADER = f"  {'':<34s} {'n':>5s} {'ΔH298':>8s} {'S298':>8s} {'Cp300':>8s} {'Cp mean':>8s} {'mean-9':>8s}"
-
-
 def ensemble(members: list[dict]) -> tuple[dict, np.ndarray]:
     val = np.array([m["res"].get("val_deeptherm_mae", np.nan) for m in members], dtype=float)
     w = 1.0 / np.maximum(val, 1e-12)
@@ -126,8 +108,6 @@ def ensemble(members: list[dict]) -> tuple[dict, np.ndarray]:
     for k in ("h_pred", "s_pred", "cp_pred"):
         ens[k] = np.tensordot(w, np.stack([m["p"][k] for m in members]), axes=(0, 0))
     return ens, w
-
-
 def worst(runs: list[dict], tag: str, n: int, prop: str, which: str = "val") -> None:
     sel = [r for r in runs if r["res"]["tag"] == tag and r["res"]["member"] == 0]
     if not sel:
@@ -165,8 +145,6 @@ def worst(runs: list[dict], tag: str, n: int, prop: str, which: str = "val") -> 
             print(f"  {smi[:40]:<40s} {true[i]:>9.2f} {pred[i]:>9.2f} {err[i]:>7.2f} "
                   f"{int(p['x'][i, col['n_heavy']]):>5d} {int(p['x'][i, col['n_rad_e']] > 0):>4d} "
                   f"{int(p['x'][i, col['n_rings']]):>5d}")
-
-
 def _weighted(members: list[dict], val_key) -> tuple[dict, np.ndarray]:
     """Weighted average of members' test predictions, w ∝ 1/val_key(member)."""
     v = np.array([val_key(m) for m in members], dtype=float)
@@ -177,18 +155,12 @@ def _weighted(members: list[dict], val_key) -> tuple[dict, np.ndarray]:
     for k in ("h_pred", "s_pred", "cp_pred"):
         out[k] = np.tensordot(w, np.stack([m["p"][k] for m in members]), axes=(0, 0))
     return out, w
-
-
 def _val_h(m):
     return m["res"]["val"]["H298_kcal"]["mae"]
-
-
 def _val_scp(m):
     v = m["res"]["val"]
     n_t = len(m["t_grid"])
     return (v["S298_cal"]["mae"] + n_t * v["Cp_mean_MAE_cal"]) / (1 + n_t)
-
-
 def combine(runs: list[dict], h_tag: str, scp_tag: str, rows: list) -> None:
     """Decoupled model: ΔH from H_TAG runs, S and Cp from SCP_TAG runs.
     Single = member 0 (lowest seed) of each. Ensemble = all runs of each tag that share the test set
@@ -238,8 +210,6 @@ def combine(runs: list[dict], h_tag: str, scp_tag: str, rows: list) -> None:
         if len(ms) > 1:
             print(f"  {lab + ' mean':<34s} {'':>5s} " + " ".join(f"{np.nanmean([m[k] for m in ms]):>8.3f}" for k in ks))
             print(f"  {lab + ' std':<34s} {'':>5s} " + " ".join(f"{np.nanstd([m[k] for m in ms], ddof=1):>8.3f}" for k in ks))
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", nargs="+", default=["benchmark_results_deeptherm"])
@@ -260,7 +230,6 @@ def main():
     ap.add_argument("--exclude_file", default=None,
                     help="text file with rows to exclude (whitespace/comma separated, '#' comments)")
     args = ap.parse_args()
-
     runs = load_runs(args.runs)
     if not runs:
         raise SystemExit(f"no DeepTherm-protocol runs under {args.runs}")
@@ -269,13 +238,10 @@ def main():
         print(f"\nCLEANED TEST SETS: {len(exclude)} dataset rows excluded from scoring")
         apply_exclude(runs, exclude)
     rows = []
-
-    # ── per (tag, split): members / seeds and the weighted ensemble ──
     groups = defaultdict(list)
     for r in runs:
         sp = r["res"]["split"]
         groups[(r["res"]["tag"], sp["type"], sp["seed"], sp.get("test_smarts"))].append(r)
-
     for (tag, stype, sseed, smarts), members in sorted(groups.items(), key=lambda kv: str(kv[0])):
         t_grid = members[0]["t_grid"]
         name = f"{stype}{sseed}" + (f" [{smarts}]" if smarts else "")
@@ -303,7 +269,6 @@ def main():
             std = {k: np.nanstd([q[k] for q in per], ddof=1) for k in keys}
             print(f"  {'single-model mean':<34s} {'':>5s} " + " ".join(f"{mean[k]:>8.3f}" for k in keys))
             print(f"  {'single-model std':<34s} {'':>5s} " + " ".join(f"{std[k]:>8.3f}" for k in keys))
-
         same_test = len({m["test_idx"] for m in members}) == 1
         if len(members) > 1 and same_test:
             ens, w = ensemble(members)
@@ -330,8 +295,6 @@ def main():
                     print(fmt_row(f"heavy atoms = {h}", metrics(ens, t_grid, mask)))
         elif len(members) > 1:
             print("  (members have different test sets -> no ensemble; use --member for ensembles)")
-
-    # ── over split seeds: member 0 of each split ──
     by_split = defaultdict(list)
     for r in runs:
         if r["res"]["member"] == 0:
@@ -348,12 +311,10 @@ def main():
         print(f"  {'':<34s} {'':>5s} {'ΔH298':>8s} {'S298':>8s} {'Cp300':>8s} {'Cp mean':>8s} {'mean-9':>8s}")
         print(f"  {'mean':<34s} {'':>5s} " + " ".join(f"{np.nanmean([m[k] for m in ms]):>8.3f}" for k in keys))
         print(f"  {'std':<34s} {'':>5s} " + " ".join(f"{np.nanstd([m[k] for m in ms], ddof=1):>8.3f}" for k in keys))
-
     if args.combine:
         combine(runs, *args.combine, rows)
     if args.worst_tag:
         worst(runs, args.worst_tag, args.worst, args.worst_prop, args.worst_set)
-
     if args.csv:
         import csv
         keys = sorted({k for r in rows for k in r})
@@ -362,7 +323,5 @@ def main():
             wr.writeheader()
             wr.writerows(rows)
         print(f"\nwrote {args.csv}")
-
-
 if __name__ == "__main__":
     main()

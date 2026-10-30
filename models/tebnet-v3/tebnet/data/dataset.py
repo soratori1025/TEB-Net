@@ -19,19 +19,16 @@ from tebnet.data.featurizer import (
 from tebnet.data.parsers.utils import get_default_temperature_grid
 import pandas as pd
 import re as _re
-
 _H_FACTOR = {"kcal": 4184.0, "kj": 1000.0, "j": 1.0}
 _SCP_FACTOR = {"cal": 4.184, "j": 1.0, "kcal": 4184.0, "kj": 1000.0}
 _SKIP = ("unc", "err", "std", "sigma", "source", "ref", "method", "note", "flag", "weight")
 logger = logging.getLogger(__name__)
-
 def _finite_or_nan(x) -> float:
     try:
         v = float(x)
     except (TypeError, ValueError):
         return float("nan")
     return v if np.isfinite(v) else float("nan")
-
 @dataclass
 class ThermoDatapoint:
     smiles: str
@@ -54,17 +51,16 @@ class ThermoDatapoint:
     """Auxiliary descriptor vector (v14: 4/8/16-D; v15: len(V15_NAMES) named vector)."""
     comp: np.ndarray | None = None
     """Element-count vector (COMP_DIM,)."""
-
 class ThermochemDataset(Dataset):
     def __init__(
         self,
         records: list[dict],
         T_grid: np.ndarray | None = None,
         compute_aux: bool = True,
-        aux_feature_set: str = "extended",   # "minimal" | "extended" | "routed" | "v15"
+        aux_feature_set: str = "extended",
         compute_comp: bool = True,
-        use_3d: bool = True,                 # v15 only: compute MOI features if not cached
-        atom_featurizer: ThermoAtomFeaturizer | None = None,  # kept for backward compat; unused
+        use_3d: bool = True,
+        atom_featurizer: ThermoAtomFeaturizer | None = None,
     ):
         self.T_grid = T_grid if T_grid is not None else get_default_temperature_grid()
         self.compute_aux = compute_aux
@@ -75,7 +71,6 @@ class ThermochemDataset(Dataset):
         self.records = records
         self.n_from_cache = 0
         self._process_records(records)
-
     def _process_records(self, records: list[dict]) -> None:
         n_skipped = 0
         for rec in records:
@@ -88,7 +83,6 @@ class ThermochemDataset(Dataset):
                 n_skipped += 1
                 logger.debug(f"Invalid SMILES skipped: {smiles}")
                 continue
-
             cp_raw = np.asarray(
                 rec.get("Cp", np.full(len(self.T_grid), np.nan)),
                 dtype=np.float32,
@@ -96,13 +90,11 @@ class ThermochemDataset(Dataset):
             cp = np.full(len(self.T_grid), np.nan, dtype=np.float32)
             min_len = min(len(cp_raw), len(self.T_grid))
             cp[:min_len] = cp_raw[:min_len]
-
             dh_f_298 = _finite_or_nan(rec.get("dH_f_298", np.nan))
             s_298 = _finite_or_nan(rec.get("S_298", np.nan))
             w = _finite_or_nan(rec.get("weight", 1.0))
             weight = 1.0 if np.isnan(w) else w
             name = rec.get("name", smiles)
-
             x_physic, comp = None, None
             if self.compute_aux and self.aux_feature_set == "v15":
                 vec = rec.get("x_v15")
@@ -128,7 +120,6 @@ class ThermochemDataset(Dataset):
                     except Exception as e:
                         logger.debug(f"Composition failed for {smiles}: {e}")
                         comp = None
-
             self.datapoints.append(ThermoDatapoint(
                 smiles=smiles,
                 mol=mol,
@@ -141,7 +132,6 @@ class ThermochemDataset(Dataset):
                 x_physic=x_physic,
                 comp=comp,
             ))
-
         if n_skipped > 0:
             logger.warning(f"Skipped {n_skipped} invalid records")
         msg = f"Dataset created with {len(self.datapoints)} molecules"
@@ -149,10 +139,8 @@ class ThermochemDataset(Dataset):
             msg += f" (v15 features: {self.n_from_cache} from cache, " \
                    f"{len(self.datapoints) - self.n_from_cache} computed on the fly)"
         logger.info(msg)
-
     def __len__(self) -> int:
         return len(self.datapoints)
-
     def __getitem__(self, idx: int) -> dict:
         dp = self.datapoints[idx]
         result = {
@@ -169,8 +157,6 @@ class ThermochemDataset(Dataset):
         )
         result["comp"] = torch.tensor(dp.comp, dtype=torch.float32) if dp.comp is not None else None
         return result
-
-    # ------------------------------------------------------------------ #
     @staticmethod
     def _load_physics_cache(cache: str | Path | None, csv_path: Path) -> dict[str, np.ndarray]:
         if cache is None:
@@ -196,7 +182,6 @@ class ThermochemDataset(Dataset):
         keys = dfc["smiles"].astype(str).str.strip().tolist()
         logger.info(f"loaded physics cache {path} ({len(keys)} species)")
         return {k: arr[i] for i, k in enumerate(keys)}
-
     @classmethod
     def from_csv(
         cls,
@@ -229,11 +214,8 @@ class ThermochemDataset(Dataset):
                 raise ValueError(f"{csv_path.name}: no SMILES column '{smiles_col}'. Columns: {list(df.columns)}")
             smiles_col = alt[0]
         cache = cls._load_physics_cache(physics_cache, csv_path)
-
         cols = _resolve_columns(df, T_grid, h_col, s_col, cp_cols)
         n = len(df)
-
-        # ── ΔH_f,298 → J/mol ──
         if cols["h"] is not None:
             raw = pd.to_numeric(df[cols["h"]], errors="coerce").to_numpy(np.float64)
             u = h_unit or _unit_from_name(cols["h"], "H") or _guess_unit(raw, "H", cols["h"])
@@ -241,8 +223,6 @@ class ThermochemDataset(Dataset):
         else:
             u, H = None, np.full(n, np.nan)
         units = {"H": u}
-
-        # ── S298 → J/(mol·K) ──
         if cols["s"] is not None:
             raw = pd.to_numeric(df[cols["s"]], errors="coerce").to_numpy(np.float64)
             u = s_unit or _unit_from_name(cols["s"], "S") or _guess_unit(raw, "S", cols["s"])
@@ -250,8 +230,6 @@ class ThermochemDataset(Dataset):
         else:
             u, S = None, np.full(n, np.nan)
         units["S"] = u
-
-        # ── Cp(T) → J/(mol·K) ──
         CP = np.full((n, len(T_grid)), np.nan)
         cp_found = [c for c in cols["cp"] if c is not None]
         if cp_found:
@@ -278,8 +256,6 @@ class ThermochemDataset(Dataset):
                                 + c[:, 4] * T**4) * 8.314462618
                 units["Cp"] = "NASA-7 coefficients"
                 cols["cp"] = ["<NASA-7>"] * len(T_grid)
-
-        # ── report what was used ──
         def _med(a):
             a = a[np.isfinite(a)]
             return float(np.median(a)) if a.size else float("nan")
@@ -307,7 +283,6 @@ class ThermochemDataset(Dataset):
             if strict:
                 raise ValueError(msg)
             logger.warning(msg)
-
         wcol = df["weight"] if "weight" in df.columns else None
         ncol = df["name"] if "name" in df.columns else None
         records = []
@@ -329,13 +304,10 @@ class ThermochemDataset(Dataset):
                 record["x_v15"] = cache.get(smi)
             records.append(record)
         return cls(records, T_grid=T_grid, **kwargs)
-
 def _norm(c) -> str:
     return _re.sub(r"[^a-z0-9]", "", str(c).lower())
-
 def _unit_from_name(col: str, kind: str) -> str | None:
     n = str(col).lower().replace(" ", "")
-    # "298kcal" / "300kcal" in an S or Cp name is "<T>K" + "cal", not kcal
     if ("kcal" in n) if kind == "H" else bool(_re.search(r"(?<![0-9])kcal", n)):
         return "kcal"
     if ("kj" in n) if kind == "H" else bool(_re.search(r"(?<![0-9])kj", n)):
@@ -345,7 +317,6 @@ def _unit_from_name(col: str, kind: str) -> str | None:
     if _re.search(r"(^|[^a-z])j($|[^a-z])|j/mol|jmol|j_mol", n):
         return "j"
     return None
-
 def _guess_unit(values: np.ndarray, kind: str, col: str) -> str:
     v = np.abs(values[np.isfinite(values)])
     med = float(np.median(v)) if v.size else 0.0
@@ -361,16 +332,12 @@ def _guess_unit(values: np.ndarray, kind: str, col: str) -> str:
     logger.warning(f"unit of column {col!r} not in its name; guessed '{u}' from magnitudes "
                    f"(median |value| = {med:.3g}). If wrong, pass {hint}.")
     return u
-
 def _resolve_columns(df: pd.DataFrame, T_grid: np.ndarray, h_col=None, s_col=None, cp_cols=None) -> dict:
     cols = list(df.columns)
-
     def _check(c):
         if c is not None and c not in df.columns:
             raise ValueError(f"column {c!r} not in CSV. Columns: {cols}")
         return c
-
-    # ΔH_f,298
     if h_col is None:
         legacy = [c for c in ("Hf298_kJ_mol", "Hf_298.15K_kcal/mol", "dH_f_298") if c in df.columns]
         cand = legacy or [
@@ -382,7 +349,6 @@ def _resolve_columns(df: pd.DataFrame, T_grid: np.ndarray, h_col=None, s_col=Non
         if len(cand) > 1:
             logger.warning(f"several ΔH_f candidates {cand}; using {cand[0]!r} (override with --h_col)")
         h_col = cand[0] if cand else None
-    # S298
     if s_col is None:
         legacy = [c for c in ("S_298_J_mol_K", "S_298.15K_cal/(molK)", "S_298", "s_298") if c in df.columns]
         cand = legacy or [
@@ -393,7 +359,6 @@ def _resolve_columns(df: pd.DataFrame, T_grid: np.ndarray, h_col=None, s_col=Non
         if len(cand) > 1:
             logger.warning(f"several S298 candidates {cand}; using {cand[0]!r} (override with --s_col)")
         s_col = cand[0] if cand else None
-    # Cp(T)
     if cp_cols is None:
         cp_cols = []
         parsed = []

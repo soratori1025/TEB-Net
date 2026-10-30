@@ -33,50 +33,40 @@ import argparse
 import sys
 from collections import defaultdict
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
-from rdkit import Chem  # noqa: E402
-from rdkit import RDLogger  # noqa: E402
-from rdkit.Chem import rdMolDescriptors  # noqa: E402
-from tebnet.data.featurizer import radical_center_type  # noqa: E402
-
+from rdkit import Chem
+from rdkit import RDLogger
+from rdkit.Chem import rdMolDescriptors
+from tebnet.data.featurizer import radical_center_type
 RDLogger.DisableLog("rdApp.*")
-HF_H_ATOM = 52.10  # kcal/mol
+HF_H_ATOM = 52.10
 BT = Chem.BondType
-
-TYPICAL = {            # kcal/mol, representative R–H bonds (orientation only)
-    "rad_alkyl_p": 101.1,     # C2H5–H (CH3–H is 105.0)
-    "rad_alkyl_s": 98.6,      # i-C3H7–H
-    "rad_alkyl_t": 96.5,      # t-C4H9–H
-    "rad_alpha_O": 96.1,      # H–CH2OH
-    "rad_alpha_CO": 96.0,     # H–CH2C(O)CH3
-    "rad_allylic": 88.8,      # allyl–H (benzyl 89.7)
-    "rad_pentadienyl": 76.5,  # 1,4-pentadiene C3–H, 1,4-cyclohexadiene C–H ≈ 76–77
-    "rad_vinyl": 110.7,       # vinyl–H
-    "rad_aryl": 112.9,        # phenyl–H
-    "rad_heteroaryl": 120.0,  # furyl C–H ≈ 120
-    "rad_cyclopropyl": 106.3, # c-C3H5–H
-    "rad_acyl": 89.4,         # CH3C(O)–H
-    "rad_alkoxy": 104.6,      # CH3O–H
-    "rad_hydroxyl": 118.8,    # HO–H
-    "rad_acyloxy": 111.0,     # HC(O)O–H, CH3C(O)O–H ≈ 110–112
-    "rad_peroxy": 87.8,       # HOO–H (ROO–H ≈ 85–86)
-    "rad_ethynyl": 133.3,     # HC≡C–H
-    "rad_vinoxy": 86.0,       # vinyl alcohol / phenol O–H ≈ 85–87 (resonance-stabilised)
-    # rad_captodative, rad_acylperoxy: no single reference value -> robust z-score only
+TYPICAL = {
+    "rad_alkyl_p": 101.1,
+    "rad_alkyl_s": 98.6,
+    "rad_alkyl_t": 96.5,
+    "rad_alpha_O": 96.1,
+    "rad_alpha_CO": 96.0,
+    "rad_allylic": 88.8,
+    "rad_pentadienyl": 76.5,
+    "rad_vinyl": 110.7,
+    "rad_aryl": 112.9,
+    "rad_heteroaryl": 120.0,
+    "rad_cyclopropyl": 106.3,
+    "rad_acyl": 89.4,
+    "rad_alkoxy": 104.6,
+    "rad_hydroxyl": 118.8,
+    "rad_acyloxy": 111.0,
+    "rad_peroxy": 87.8,
+    "rad_ethynyl": 133.3,
+    "rad_vinoxy": 86.0,
 }
-
-
-# ───────────────────────── audit classes ─────────────────────────
 def _is_carbonyl_c(n) -> bool:
     return n.GetAtomicNum() == 6 and any(
         b.GetBondType() == BT.DOUBLE and b.GetOtherAtom(n).GetAtomicNum() == 8 for b in n.GetBonds())
-
-
 def _n_conjugated_pi(a) -> int:
     """C=C / C≡C bonds conjugated with a radical carbon: R•–C=C counts 1, R•–C=C–C=C counts 2.
     Aromatic bonds are not counted (benzyl ≈ allyl, not pentadienyl)."""
@@ -92,7 +82,7 @@ def _n_conjugated_pi(a) -> int:
             if b.GetIdx() not in seen:
                 seen.add(b.GetIdx())
                 count += 1
-            for b2 in m.GetBonds():   # extended conjugation R•–C=C–C=C
+            for b2 in m.GetBonds():
                 k = b2.GetOtherAtom(m)
                 if k.GetIdx() in (n.GetIdx(), a.GetIdx()) or k.GetAtomicNum() != 6:
                     continue
@@ -102,8 +92,6 @@ def _n_conjugated_pi(a) -> int:
                         seen.add(b3.GetIdx())
                         count += 1
     return count
-
-
 def audit_type(a) -> str | None:
     t = radical_center_type(a)
     if t is None:
@@ -131,14 +119,9 @@ def audit_type(a) -> str | None:
     if t == "rad_allylic" and _n_conjugated_pi(a) >= 2:
         return "rad_pentadienyl"
     return t
-
-
-# ───────────────────────── helpers ─────────────────────────
 def canon(smi: str) -> str | None:
     m = Chem.MolFromSmiles(str(smi))
     return Chem.MolToSmiles(m) if m is not None else None
-
-
 def parent_of(mol: Chem.Mol) -> tuple[str | None, str | None, str | None]:
     rad = [a for a in mol.GetAtoms() if a.GetNumRadicalElectrons() > 0]
     if len(rad) != 1 or rad[0].GetNumRadicalElectrons() != 1:
@@ -156,8 +139,6 @@ def parent_of(mol: Chem.Mol) -> tuple[str | None, str | None, str | None]:
     except Exception:
         return None, typ, atyp
     return Chem.MolToSmiles(rw), typ, atyp
-
-
 def skeleton_key(mol: Chem.Mol) -> str | None:
     """Heavy-atom skeleton + H count per atom + unpaired electrons; bond orders, aromaticity and
     stereo dropped. Equal keys = resonance structures / stereo variants of one species.
@@ -188,8 +169,6 @@ def skeleton_key(mol: Chem.Mol) -> str | None:
         return f"{formula}|{h_pattern}|{smi}|rad{n_rad}"
     except Exception:
         return None
-
-
 def attribute(res: pd.DataFrame, tol: float, tol_sib: float, zmax: float = 4.0) -> list[dict]:
     """Sibling-based attribution of BDE outliers to the parent or the radical label."""
     out = []
@@ -225,9 +204,6 @@ def attribute(res: pd.DataFrame, tol: float, tol_sib: float, zmax: float = 4.0) 
                                     f"[{r.audit_type[4:]}]; {ev}; parent {parent} (row {prow}, ΔHf {hp:.2f}); "
                                     f"siblings: {sib_txt}"})
     return out
-
-
-# ───────────────────────── main ─────────────────────────
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", required=True)
@@ -242,7 +218,6 @@ def main():
     ap.add_argument("--dup_tol", type=float, default=1.0, help="report duplicates whose ΔHf differ by more than this")
     ap.add_argument("--out_prefix", default="bde_audit")
     args = ap.parse_args()
-
     df = pd.read_csv(args.csv)
     scol = next(c for c in df.columns if str(c).lower() == args.smiles_col.lower())
     hcol = args.h_col or next(c for c in df.columns if "hf" in str(c).lower())
@@ -253,13 +228,10 @@ def main():
     smiles = df[scol].astype(str).str.strip().tolist()
     mols = [Chem.MolFromSmiles(x) for x in smiles]
     print(f"{args.csv}: {len(df)} rows | ΔHf column '{hcol}' ({args.h_unit}) -> kcal/mol")
-
     by_canon: dict[str, tuple[int, float]] = {}
     for i, m in enumerate(mols):
         if m is not None and np.isfinite(h[i]):
             by_canon.setdefault(Chem.MolToSmiles(m), (i, h[i]))
-
-    # ── 1. BDE audit ──
     rows, n_rad = [], 0
     for i, m in enumerate(mols):
         if m is None or not np.isfinite(h[i]) or sum(a.GetNumRadicalElectrons() for a in m.GetAtoms()) != 1:
@@ -276,7 +248,6 @@ def main():
     print(f"mono-radicals: {n_rad} | with parent in the dataset: {len(res)}\n")
     if res.empty:
         return
-
     print(f"  {'audit class':<17s} {'n':>5s} {'median':>8s} {'MAD':>6s} {'min':>8s} {'max':>8s} {'typical':>8s}")
     stats = {}
     for typ, g in res.groupby("audit_type"):
@@ -285,18 +256,13 @@ def main():
         stats[typ] = (med, mad)
         print(f"  {typ:<17s} {len(g):>5d} {med:>8.1f} {mad:>6.1f} {g.BDE.min():>8.1f} {g.BDE.max():>8.1f} "
               f"{TYPICAL.get(typ, float('nan')):>8.1f}")
-
     res["dev_typical"] = res.apply(lambda r: r.BDE - TYPICAL.get(r.audit_type, np.nan), axis=1)
     res["dev_median"] = res.apply(lambda r: r.BDE - stats[r.audit_type][0], axis=1)
     res["robust_z"] = res.apply(lambda r: r.dev_median / stats[r.audit_type][1], axis=1)
     flagged = res[(res.dev_typical.abs() > args.tol) | (res.robust_z.abs() > args.zmax)].copy()
     flagged = flagged.reindex(flagged.dev_median.abs().sort_values(ascending=False).index)
     print(f"\nflagged: {len(flagged)} BDEs (|BDE − typical| > {args.tol} or |robust z| > {args.zmax})")
-
-    # ── 2. attribution ──
     sus = attribute(res, args.tol, args.tol_sib, args.zmax)
-
-    # ── 3. resonance / stereo duplicates ──
     def _k(smi):
         return skeleton_key(Chem.MolFromSmiles(smi))
     key_ok = (_k("C=C[O]") == _k("[CH2]C=O") and _k("C=CC/C=C/C") == _k("C=CCC=CC")
@@ -326,14 +292,12 @@ def main():
     dups = pd.DataFrame(dup_rows)
     if not dups.empty:
         dups = dups.sort_values("Hf_spread", ascending=False)
-
     sus = pd.DataFrame(sus, columns=["row", "smiles", "role", "est_error_kcal", "Hf_label", "evidence"])
     if not sus.empty:
         order = {"parent": 0, "radical": 1, "duplicate": 2, "ambiguous": 3}
         sus["_o"] = sus.role.map(order)
         sus["_e"] = -sus.est_error_kcal.abs().fillna(0)
         sus = sus.sort_values(["_o", "_e"]).drop(columns=["_o", "_e"]).drop_duplicates(["row", "role"])
-
     print(f"\nsuspected labels: {len(sus)}  "
           + "  ".join(f"{r}: {int((sus.role == r).sum())}" for r in ("parent", "radical", "duplicate", "ambiguous")))
     for role in ("parent", "radical", "duplicate", "ambiguous"):
@@ -349,13 +313,10 @@ def main():
               f"{int((dups.Hf_spread > args.dup_tol).sum())} with ΔHf spread > {args.dup_tol} kcal/mol")
         for _, r in dups.head(20).iterrows():
             print(f"  rows {r.rows:<14s} {r.smiles:<40s} ΔHf {r.Hf:<22s} S {r.S298}")
-
     res.to_csv(f"{args.out_prefix}_all.csv", index=False)
     flagged.to_csv(f"{args.out_prefix}_flagged.csv", index=False)
     sus.to_csv(f"{args.out_prefix}_suspects.csv", index=False)
     dups.to_csv(f"{args.out_prefix}_duplicates.csv", index=False)
     print(f"\nwrote {args.out_prefix}_all.csv, _flagged.csv, _suspects.csv, _duplicates.csv")
-
-
 if __name__ == "__main__":
     main()

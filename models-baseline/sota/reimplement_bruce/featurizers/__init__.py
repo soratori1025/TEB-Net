@@ -4,7 +4,6 @@ from .mordred_feat import MordredExtractor
 from .cm import CoulombMatrixExtractor
 from .soap_mbtr import SOAPMBTRRDKitExtractor
 from .graph_builder import MoleculeGraphBuilder
-
 __all__ = [
     'CustomDescriptorSetExtractor',
     'ECFP4Extractor',

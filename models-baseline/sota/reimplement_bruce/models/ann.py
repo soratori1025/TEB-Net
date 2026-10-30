@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
-
 class CDS_ANN(nn.Module):
     """
     CDS-ANN-KR Architecture:
@@ -20,10 +19,8 @@ class CDS_ANN(nn.Module):
             nn.ReLU(),
             nn.Linear(128, 1)
         )
-
     def forward(self, x):
         return self.net(x)
-
 class ANNTrainer:
     def __init__(self, input_dim=104, lr=0.001, epochs=200, batch_size=128, device=None):
         self.input_dim = input_dim
@@ -34,15 +31,12 @@ class ANNTrainer:
         self.model = CDS_ANN(input_dim=input_dim).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
-
     def fit(self, X_train, y_train):
         self.model.train()
         X_t = torch.tensor(X_train, dtype=torch.float32)
         y_t = torch.tensor(y_train, dtype=torch.float32).view(-1, 1)
-        
         dataset = TensorDataset(X_t, y_t)
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=True)
-        
         for epoch in range(self.epochs):
             for bx, by in loader:
                 bx, by = bx.to(self.device), by.to(self.device)
@@ -51,7 +45,6 @@ class ANNTrainer:
                 loss = self.criterion(out, by)
                 loss.backward()
                 self.optimizer.step()
-
     def predict(self, X):
         self.model.eval()
         with torch.no_grad():

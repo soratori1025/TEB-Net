@@ -18,20 +18,15 @@ Usage (from the repository root; ~15 min per run on one A100)
       --series check/homologous_series.csv --agg mean sum --targets H --out_dir runs_agg
 """
 from __future__ import annotations
-
 import argparse
 import json
 import sys
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
 J_TO_KCAL = 1.0 / 4184.0
 J_TO_CAL = 1.0 / 4.184
 TARGET_UNITS = {"H": "kcal", "S": "cal", "Cp300": "cal"}
-
-
 def setup_paths():
     here = Path(__file__).resolve().parent
     for p in (here, here.parent / "scripts"):
@@ -39,8 +34,6 @@ def setup_paths():
             sys.path.insert(0, str(p))
             return
     raise SystemExit("train.py not found next to this script or in ../scripts")
-
-
 def import_split():
     for mod in ("tebnet.data.splits", "tebnet.splits", "train"):
         try:
@@ -48,8 +41,6 @@ def import_split():
         except (ImportError, AttributeError):
             continue
     raise SystemExit("deeptherm_split not found (tebnet.data.splits / train.py)")
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--csv", required=True)
@@ -69,9 +60,8 @@ def main():
     ap.add_argument("--num_workers", type=int, default=0)
     ap.add_argument("--out_dir", default="runs_agg")
     args = ap.parse_args()
-
     setup_paths()
-    from train import DEEPTHERM_T_GRID, make_atom_featurizer      # also sets the project paths
+    from train import DEEPTHERM_T_GRID, make_atom_featurizer
     import torch
     import lightning.pytorch as pl
     from rdkit import Chem
@@ -79,7 +69,6 @@ def main():
     from tebnet.data.dataset import ThermochemDataset
     from tebnet.data.featurizer import CleanBondFeaturizer
     deeptherm_split = import_split()
-
     t_grid = np.asarray(DEEPTHERM_T_GRID, dtype=np.float64)
     ds = ThermochemDataset.from_csv(args.csv, T_grid=t_grid, smiles_col=args.smiles_col, physics_cache=None,
                                     strict=True, compute_aux=False, compute_comp=False)
@@ -93,22 +82,18 @@ def main():
     tr, va, te = (np.asarray(a) for a in deeptherm_split(smiles, "random", seed=args.split_seed))
     print(f"{Path(args.csv).name}: {len(dps)} species | split {args.split_seed}: "
           f"{len(tr)} / {len(va)} / {len(te)} | targets {args.targets}")
-
     if args.graph == "tebnet":
         feat = featurizers.SimpleMoleculeMolGraphFeaturizer(atom_featurizer=make_atom_featurizer("thermo"),
                                                             bond_featurizer=CleanBondFeaturizer())
     else:
         feat = featurizers.SimpleMoleculeMolGraphFeaturizer()
-
     def dataset(idx, with_y=True):
         pts = [data.MoleculeDatapoint(mol=dps[i].mol, y=Y[i] if with_y else None) for i in idx]
         return data.MoleculeDataset(pts, featurizer=feat)
-
     ser = pd.read_csv(args.series)
     ser_smi = ser["smiles"].astype(str).str.strip().tolist()
     ser_mols = [Chem.MolFromSmiles(s) for s in ser_smi]
     ser_ds = data.MoleculeDataset([data.MoleculeDatapoint(mol=m) for m in ser_mols], featurizer=feat)
-
     out_root = Path(args.out_dir)
     tname = "-".join(args.targets)
     for agg_name in args.agg:
@@ -131,12 +116,10 @@ def main():
         dl = dict(batch_size=args.batch_size, num_workers=args.num_workers)
         trainer.fit(model, data.build_dataloader(train_ds, seed=args.seed, **dl),
                     data.build_dataloader(val_ds, shuffle=False, **dl))
-
         def predict(dset):
             out = trainer.predict(model, data.build_dataloader(dset, shuffle=False, **dl),
                                   ckpt_path=ckpt.best_model_path)
             return torch.cat(out).double().cpu().numpy().reshape(len(dset), len(args.targets))
-
         p_te = predict(test_ds)
         metrics = {t: {"test_mae": float(np.abs(p_te[:, k] - Y[te, k]).mean()),
                        "test_rmse": float(np.sqrt(np.mean((p_te[:, k] - Y[te, k]) ** 2))),
@@ -150,7 +133,5 @@ def main():
         out.to_csv(run / "preds_homologous.csv", index=False, float_format="%.3f")
         print(f"[{agg_name}] test " + ", ".join(f"{t} MAE {metrics[t]['test_mae']:.2f}" for t in args.targets)
               + f"  ->  {run / 'preds_homologous.csv'}")
-
-
 if __name__ == "__main__":
     main()

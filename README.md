@@ -1,89 +1,76 @@
-# TEB-Net — Thermodynamics-Enhanced Bond Network
+# TEB-Net — Thermodynamics-Embedded Baseline Network
 
-Research code, benchmark harness and evaluation artefacts for **TEB-Net**, a
-thermochemistry model built on a physics-constrained bond-network backbone with
-Chebyshev polynomial expansions of temperature-dependent thermodynamic
-quantities.
+Research code for the manuscript *"Thermodynamics-Embedded Baseline Network (TEB-Net) Extrapolates
+Molecular Thermochemistry to Fuel-Sized Chains and Flame Temperatures"*.
 
-## Repository layout
+TEB-Net predicts the gas-phase **ΔfH°298**, **S°298** and **Cp(T)** of C/H/O species from a SMILES
+string and returns them as two-range **NASA-7** polynomials. The prediction is the sum of two parts:
 
-```
-teb-net-model/
-├── framework/                 # git submodule -> soratori1025/Framework-Chemistry
-│                              #   general chemistry-ML framework: data loaders,
-│                              #   descriptor cache, benchmark suite, evidence routing
-├── models/
-│   ├── tebnet-v2/             # archived model generation (manuscript numbers)
-│   └── tebnet-v3/             # current generation: training, benchmarks, check/
-│       ├── tebnet/            # model + training package
-│       ├── check/             # evaluation & diagnostic scripts (homolog tables,
-│       │                      #   ablations, archive builder)
-│       └── benchmark_results_deeptherm/   # per-run results.json + predictions
-├── models-baseline/
-│   ├── results/               # ML / GNN baseline runs (AttentiveFP, RF, ...)
-│   ├── benchmark_results_baselines/
-│   ├── traditional_models/
-│   └── sota_patches/          # OUR local modifications to upstream SOTA repos
-│                              #   (chemprop, DeepTherm, HC-Thermochemistry)
-├── data/                      # datasets used by the study
-├── figures/                   # manuscript figures
-└── ARCHIVE_README.md          # what the 2.3 GB snapshot archive contains
-```
+* a **frozen additive baseline** built from molecular bond, ring and radical-centre counts
+  (explicitly defined descriptors, no learned parameters), and
+* a **D-MPNN residual** that corrects the baseline.
 
-## Not tracked here
+An analytic output layer converts the resulting anchors into NASA-7 coefficients, and a high-temperature
+completion keeps the exported heat capacity monotonic and below its classical limit up to 3000 K.
 
-| Excluded | Size | How to obtain |
-|---|---|---|
-| `.venv/` | 6.8 GB | `python -m venv .venv && pip install -e framework && pip install -e models/tebnet-v3` |
-| `*.ckpt`, `*.pt`, `*.npz` | ~2.5 GB | full snapshot: `tebnet_research_2026-10-19.zip` (see `ARCHIVE_README.md`) |
-| `models-baseline/sota/{chemprop_repo,DeepTherm,HC-Thermochemistry}/` | 1.2 GB | clone upstream; our diffs live in `models-baseline/sota_patches/` |
-| `models/tebnet-v3/RMG-database/` | 43 MB | `git clone https://github.com/ReactionMechanismGenerator/RMG-database` |
+## What is in this repository
 
-`framework/` is a submodule, not a copy: clone with
-`git clone --recurse-submodules <this-repo>` (or `git submodule update --init`).
+| path | contents |
+|---|---|
+| `models/tebnet-v3/tebnet/` | the model package (prior, featuriser, D-MPNN, NASA-7 layer, completion) |
+| `models/tebnet-v3/scripts/` | training (`train.py`), evaluation (`deeptherm_eval.py`), descriptor cache (`compute_physics_features.py`), SMILES prediction (`predict_smiles.py`) |
+| `models/tebnet-v3/check/` | diagnostic and analysis scripts (ensemble reports, homologous-series controls, NASA-7 and high-temperature checks, prior audits) |
+| `models/tebnet-v3/benchmark_results_*/` | stored per-run `results.json` and predictions used for the paper's tables |
+| `models-baseline/traditional_models/` | conventional-ML and GNN baselines under the same protocol, plus the CH2 extrapolation benchmark |
+| `models-baseline/ch2_extrapolation/` | benchmark outputs: per-model predictions, per-series increments and summary tables |
+| `models-baseline/sota_patches/` | local patches applied to the upstream SOTA repositories during the study |
+| `data/` | datasets and splits used by the study (DeepTherm, Ureel, WUDILY-CHO, RMG references) |
+| `models/tebnet-v2/` | archived earlier model generation (kept for provenance) |
 
-## Reproducing the main results
+## Environment
+
+Python 3.12 with `torch`, `torch_geometric`, `rdkit`, `lightning`, `numpy`, `pandas`,
+`scikit-learn`, `xgboost` and `chemprop` (v2).
 
 ```bash
-# environment
 python -m venv .venv && source .venv/bin/activate
-pip install -e framework
-pip install -e models/tebnet-v3    # if no pyproject.toml: add models/tebnet-v3 to PYTHONPATH
-
-# DeepTherm benchmark (thermodynamic targets, grouped split)
-cd models/tebnet-v3
-python scripts/train.py --seed 0 --member 0 --split_seed 0 \
-    --csv deeptherm_data.physics_v15.csv --s_prior v2_exact
-# full multi-seed sweep: python orchestrate_v3.py
-
-# homologous-series extrapolation table
-python check/homologous_controls.py --series <predictions>.csv
-
-# regression tests (from models/tebnet-v3)
-pytest ../../framework/tests tests -q
+pip install torch torch_geometric rdkit lightning numpy pandas scikit-learn xgboost chemprop
 ```
 
-> **First-run note.** `framework/tests/test_datasets.py` needs the MoleculeNet
-> files, which are not tracked (they are large and re-downloadable). Run
-> `python framework/benchmarks/prepare_moleculenet_data.py` once, or skip that
-> module: `pytest framework/tests --ignore=framework/tests/test_datasets.py`
-> (79 tests pass without it).
+## Quick start
 
-## Key result: CH2-homolog regulariser (lambda sweep)
+```bash
+export PYTHONPATH=$PWD/models/tebnet-v3          # `tebnet` package lives here
 
-Member 0, seed 0, split seed 0, 100 epochs, no early stop:
+# 1) physics-descriptor cache (built once next to the CSV)
+python models/tebnet-v3/scripts/compute_physics_features.py --csv models-baseline/deeptherm_data.csv
 
-| run | best epoch | val DeepTherm MAE (9 targets) | vs baseline |
-|---|---|---|---|
-| baseline `sp-v2_exact` | 84 | **0.9216** | — |
-| `hom` lambda = 1e-3 | 92 | 0.9991 | +8.4 % worse |
-| `hom` lambda = 3e-3 | 92 | 1.0325 | +12.0 % worse |
+# 2) train and evaluate on a DeepTherm random split
+python models/tebnet-v3/scripts/train.py --split_type random --split_seed 0
+python models/tebnet-v3/scripts/deeptherm_eval.py --runs models/tebnet-v3/benchmark_results_deeptherm
 
-The CH2-homolog consistency penalty **degrades** aggregate validation accuracy:
-it buys consistency between homologs at the cost of absolute error. Full
-discussion, including the timestamp caveat on the manuscript's homologous table,
-is in `models/tebnet-v3/check/HOMOLOG_RETRAIN_NOTES.md`.
+# 3) CH2 extrapolation benchmark (Figure 2 and Table 1 of the manuscript)
+python models-baseline/traditional_models/ch2_extrapolation.py --list
+python models-baseline/traditional_models/ch2_extrapolation.py --only ml-ridge_prior ml-rf_physics
+python models-baseline/traditional_models/ch2_extrapolation_dmpnn.py
+python models-baseline/traditional_models/ch2_extrapolation_summary.py
+```
 
-## Citation
+The benchmark rebuilds every baseline on the same random split 0 and scores it on the five homologous
+series up to C16; details and the reproduction check are described in
+`models-baseline/ch2_extrapolation/README.md`.
 
-Manuscript in preparation.
+## Data
+
+The 4,997-species DeepTherm set is included as `models-baseline/deeptherm_data.csv` (same row order as
+the published Supplementary Data, verified by a SHA-1 fingerprint in `models-baseline/traditional_models/baseline_common.py`).
+Further datasets used by the study are under `data/`. Upstream repositories (chemprop, DeepTherm,
+HC-Thermochemistry, RMG-database) are **not** redistributed here; install them from their own sources,
+the local modifications applied during the study are kept in `models-baseline/sota_patches/`.
+
+## Notes
+
+* Trained checkpoints (~2.5 GB) are not stored in the repository; a training run takes 6–29 min on one
+  NVIDIA A100 and the scripts write their own checkpoints and `results.json` files.
+* Scripts are launched from the repository root with `PYTHONPATH=models/tebnet-v3` (or from inside
+  `models/tebnet-v3/`, where the package is importable directly).

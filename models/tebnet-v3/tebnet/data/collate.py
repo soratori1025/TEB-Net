@@ -5,7 +5,6 @@ from torch import Tensor
 from chemprop.data import BatchMolGraph
 from chemprop.featurizers import SimpleMoleculeMolGraphFeaturizer
 from tebnet.data.featurizer import CleanBondFeaturizer
-
 @dataclass
 class ThermoBatch:
     bmg: BatchMolGraph
@@ -17,10 +16,8 @@ class ThermoBatch:
     T_grid: Tensor
     smiles: list[str]
     comp: Tensor | None = None  
-
     def __len__(self) -> int:
         return len(self.smiles)
-
     def to(self, device: torch.device) -> "ThermoBatch":
         if hasattr(self.bmg, "to"):
             self.bmg.to(device)  
@@ -35,7 +32,6 @@ class ThermoBatch:
             smiles=self.smiles,
             comp=self.comp.to(device) if self.comp is not None else None,
         )
-
 @dataclass
 class HomologPairBatch:
     """A batch of CH2-homolog pairs: two ordinary batches plus the pair's site class.
@@ -48,16 +44,13 @@ class HomologPairBatch:
     of registering them on the model) keeps the prior out of the checkpoint: the table is
     a property of the training split, and a checkpoint must not silently carry one.
     """
-
     anchor: ThermoBatch
     partner: ThermoBatch
     cls_idx: Tensor
     increments: Tensor | None = None
     tolerances: Tensor | None = None
-
     def __len__(self) -> int:
         return len(self.cls_idx)
-
     def to(self, device: torch.device) -> "HomologPairBatch":
         return HomologPairBatch(
             anchor=self.anchor.to(device),
@@ -66,8 +59,6 @@ class HomologPairBatch:
             increments=self.increments.to(device) if self.increments is not None else None,
             tolerances=self.tolerances.to(device) if self.tolerances is not None else None,
         )
-
-
 class HomologPairCollater:
     """Collate ``{"anchor": item, "partner": item, "cls_idx": int}`` dicts.
 
@@ -76,7 +67,6 @@ class HomologPairCollater:
     :class:`tebnet.data.homologs.HomologPairTable` the pairs were built from) to attach
     each pair's target increment and tolerance to the batch.
     """
-
     def __init__(self, base: ThermoCollater | None = None, table=None):
         self.base = base if base is not None else ThermoCollater()
         self.increments = None
@@ -84,7 +74,6 @@ class HomologPairCollater:
         if table is not None:
             self.increments = torch.as_tensor(table.increments, dtype=torch.float32)
             self.tolerances = torch.as_tensor(table.tolerances, dtype=torch.float32)
-
     def __call__(self, batch: list[dict]) -> HomologPairBatch:
         cls_idx = torch.tensor([item["cls_idx"] for item in batch], dtype=torch.long)
         increments = self.increments[cls_idx] if self.increments is not None else None
@@ -96,8 +85,6 @@ class HomologPairCollater:
             increments=increments,
             tolerances=tolerances,
         )
-
-
 class ThermoCollater:
     def __init__(self, mol_graph_featurizer: SimpleMoleculeMolGraphFeaturizer | None = None, atom_featurizer=None, bond_featurizer=None):
         if mol_graph_featurizer is None:
@@ -108,9 +95,7 @@ class ThermoCollater:
             else:
                 mol_graph_featurizer = SimpleMoleculeMolGraphFeaturizer(bond_featurizer=bond_featurizer,)
         self.mol_graph_featurizer = mol_graph_featurizer
-        # v3: featurised graphs are deterministic per SMILES -> cache them (same output, ~no CPU per epoch)
         self._graph_cache: dict[str, object] = {}
-
     def _graph(self, item: dict):
         key = item["smiles"]
         g = self._graph_cache.get(key)
@@ -118,7 +103,6 @@ class ThermoCollater:
             g = self.mol_graph_featurizer(item["mol"])
             self._graph_cache[key] = g
         return g
-
     def __call__(self, batch: list[dict]) -> ThermoBatch:
         mol_graphs = [self._graph(item) for item in batch]
         bmg = BatchMolGraph(mol_graphs)

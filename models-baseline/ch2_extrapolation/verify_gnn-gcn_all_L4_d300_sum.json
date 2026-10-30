@@ -1,0 +1,14 @@
+{
+  "tag": "gnn-gcn_all_L4_d300_sum",
+  "run_dir": "models-baseline/benchmark_results_baselines/gnn-gcn_all_L4_d300_sum/random0/member0_seed0",
+  "max_abs_diff_test_h_pred": 0.16070179641246796,
+  "max_abs_diff_test_s_pred": 7.857711756287244e-05,
+  "max_abs_diff_test_cp_pred": 0.00011241033087117103,
+  "n_test": 501,
+  "max_abs_diff_val_h_pred": 0.2678363273735158,
+  "max_abs_diff_val_s_pred": 7.071940581226954e-05,
+  "max_abs_diff_val_cp_pred": 0.00011241033087117103,
+  "n_val": 449,
+  "max_abs_diff_all": 0.2678363273735158,
+  "reproduced": true
+}

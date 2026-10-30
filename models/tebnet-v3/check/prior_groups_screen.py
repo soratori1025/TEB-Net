@@ -2,13 +2,11 @@
 import json, sys, time
 from pathlib import Path
 import numpy as np, pandas as pd
-
 ROOT = Path("/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v3")
 sys.path.insert(0, str(ROOT))
 from tebnet.data.featurizer import V15_NAMES, v15_base_names
 from tebnet.data.baselines import fit_ridge, fit_cp_cheb_baseline, cp_from_cheb
 from tebnet.data.groups import load_or_compute_groups
-
 CSV = "/home/nvsinh1/brats_segmentation/teb-net-model/models-baseline/sota/bruce_benchmark/data/wudily_cho_processed.csv"
 FOLDS = "/home/nvsinh1/brats_segmentation/teb-net-model/models-s3/tebnet-v1/results/benchmark_results_wudily/wudily_cho_processed/folds_k5_cv0.json"
 df = pd.read_csv(CSV)
@@ -27,13 +25,9 @@ print(f"groups: {G.shape[1]} keys ({sum(v.startswith('g:') for v in vocab)} grou
       f"{sum(v.startswith('r:') for v in vocab)} ring keys) in {time.time()-t0:.0f}s")
 col = {n: i for i, n in enumerate(V15_NAMES)}
 folds = [np.array(f) for f in fd["folds"]]
-
-
 def design(role, use_groups):
     Xb = X15[:, [col[n] for n in v15_base_names(role, "physics", True)]]
     return np.hstack([Xb, G]) if use_groups else Xb
-
-
 def fit_pred(Xtr, ytr, Xte, lam, min_count, n_base):
     keep = np.ones(Xtr.shape[1], bool)
     if min_count:
@@ -41,8 +35,6 @@ def fit_pred(Xtr, ytr, Xte, lam, min_count, n_base):
         keep[n_base:] = nz >= min_count
     w, b, _ = fit_ridge(Xtr[:, keep], ytr, lam)
     return Xte[:, keep] @ w + b
-
-
 T = np.array([300, 400, 500, 600, 800, 1000, 1500.0])
 configs = [("v15", False, 1e-3, 0)] + [(f"v15+groups mc{mc} lam{lam:g}", True, lam, mc)
                                        for mc in (3, 10, 25) for lam in (1e-4, 1e-3, 1e-2)]

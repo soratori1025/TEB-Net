@@ -27,19 +27,15 @@ Usage
       [--deeptherm_csv models-baseline/deeptherm_data.csv] --out_csv high_t_validation.csv
 """
 from __future__ import annotations
-
 import argparse
 import json
 import re
 import sys
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from rmg_cp_reference import cp_j, h_j, s_j          # noqa: E402  (reference polynomials, 7 or 9 coefficients)
-
+from rmg_cp_reference import cp_j, h_j, s_j
 R = 8.314462618
 CAL = 4.184
 T_REF = 298.15
@@ -49,8 +45,6 @@ DT_CP = ["cp_300K_cal/(molK)", "cp_400K_cal/(molK)", "cp_500K_cal/(molK)", "cp_6
 NUM = re.compile(r"[+-]?\d\.\d+[Ee][+-]\d+")
 BANDS = [("300–1500 K", "300_1500", 300.0, 1500.0), ("1500–2000 K", "1500_2000", 1500.0, 2000.0),
          ("2000–3000 K", "2000_3000", 2000.0, 3000.0)]
-
-
 def parse_chemkin(path):
     """Chemkin THERMO file -> {name: (t_mid, a_low[7], a_high[7])} (same reader as figures/plot_cp_completion.py)."""
     lines = Path(path).read_text().splitlines()
@@ -65,8 +59,6 @@ def parse_chemkin(path):
         else:
             i += 1
     return out
-
-
 def teb_props(entry, T):
     """Cp, H, S (J units) of a NASA-7 pair on the array T."""
     t_mid, lo, hi = entry
@@ -75,24 +67,17 @@ def teb_props(entry, T):
     h = R * T * (sum(a[:, k] * T ** k / (k + 1) for k in range(5)) + a[:, 5] / T)
     s = R * (a[:, 0] * np.log(T) + sum(a[:, k] * T ** k / k for k in range(1, 5)) + a[:, 6])
     return cp, h, s
-
-
 def canon_fn():
     try:
         from rdkit import Chem
     except ImportError:
         return lambda s: s
-
     def can(s):
         m = Chem.MolFromSmiles(s)
         return Chem.MolToSmiles(m, isomericSmiles=False) if m is not None else s
     return can
-
-
 def size_bin(n):
     return "≤ 5 heavy atoms" if n <= 5 else ("6–10 heavy atoms" if n <= 10 else "> 10 heavy atoms")
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("completed_dat")
@@ -105,7 +90,6 @@ def main():
     ap.add_argument("--deeptherm_csv", default=None)
     ap.add_argument("--out_csv", default="high_t_validation.csv")
     args = ap.parse_args()
-
     p = Path(args.completed_dat)
     comp = parse_chemkin(p)
     trained = parse_chemkin(args.as_trained or p.with_suffix(".as_trained.dat"))
@@ -114,7 +98,6 @@ def main():
         names["split"] = "test"
     can = canon_fn()
     names["_key"] = names.smiles.astype(str).map(can)
-
     ref = pd.read_csv(args.reference)
     n_ref = int((ref["rank"] == 0).sum())
     ref = ref[(ref["rank"] == 0) & (ref.smiles_roundtrip == 1) & (ref.multiplicity <= args.max_multiplicity)].copy()
@@ -126,7 +109,6 @@ def main():
           f"{len(ref)}; with TEB-Net polynomials: {len(m)}")
     if m.empty:
         raise SystemExit("no species matched: run nasa7_check.py --smiles_csv on the same reference CSV")
-
     T = np.arange(300.0, args.t_high + 0.5, 10.0)
     i1500 = int(np.argmin(np.abs(T - args.t_data_max)))
     above = T > args.t_data_max
@@ -156,16 +138,13 @@ def main():
         rows.append(row)
     df = pd.DataFrame(rows)
     df.to_csv(args.out_csv, index=False, float_format="%.4g")
-
     groups = [("all", df.index == df.index)]
     groups += [(f"split: {k}", df.split == k) for k in ("train", "val", "test", "none") if (df.split == k).any()]
     groups += [(f"source: {k}", df.source == k) for k in ("evaluated", "qm") if (df.source == k).any()]
     sb = df.n_heavy.map(size_bin)
     groups += [(k, sb == k) for k in ("≤ 5 heavy atoms", "6–10 heavy atoms", "> 10 heavy atoms") if (sb == k).any()]
-
     def cell(g, col, f="{:.1f}"):
         return f"{f.format(g[col + '_c'].abs().mean())} / {f.format(g[col + '_t'].abs().mean())}"
-
     print(f"\n### Cp error against the reference, J/(mol K): completed / as trained (no data above "
           f"{args.t_data_max:g} K)\n")
     print("| Group | n | MAE " + " | MAE ".join(b[0] for b in BANDS) + f" | drift above {args.t_data_max:g} K "
@@ -181,7 +160,6 @@ def main():
     for gname, sel in groups:
         g = df[sel]
         print(f"| {gname} | {len(g)} | " + " | ".join(cell(g, f"mape_{b[1]}") for b in BANDS) + " |")
-
     rise = df.cp_ref_3000 - df.cp_ref_1500
     print(f"\nreference rise of Cp from {args.t_data_max:g} to {args.t_high:g} K: median {rise.median():.1f} J/(mol K) "
           f"({100 * (rise / df.cp_ref_1500).median():.0f} % of Cp({args.t_data_max:g} K))")
@@ -194,7 +172,6 @@ def main():
     for _, r in df.nlargest(8, "mae_2000_3000_c").iterrows():
         print(f"  {r['name']:<7s} {r.smiles:<32s} {r.library:<28s} {r.split:<5s} "
               f"MAE {r.mae_2000_3000_c:.1f} (as trained {r.mae_2000_3000_t:.1f}), e(1500 K) {r.e1500_c:+.1f}")
-
     if args.deeptherm_csv:
         d = pd.read_csv(args.deeptherm_csv)
         col = next(c for c in d.columns if c.strip().lower() == "smiles")
@@ -212,7 +189,5 @@ def main():
             print(f"\nreference vs DeepTherm data at 300–1500 K ({len(both)} species in both): MAE "
                   + ", ".join(f"{t:.0f} K {e:.1f}" for t, e in zip(T_DATA, err.mean(0))) + " J/(mol K)")
     print(f"\nwrote {args.out_csv}")
-
-
 if __name__ == "__main__":
     main()

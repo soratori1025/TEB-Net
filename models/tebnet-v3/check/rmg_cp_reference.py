@@ -31,27 +31,21 @@ Usage
 Then run check/nasa7_check.py --smiles_csv rmg_cp_reference.csv (unique SMILES) and check/high_t_validation.py.
 """
 from __future__ import annotations
-
 import argparse
 import ast
 import json
 import re
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
 R = 8.314462618
 T_REF = 298.15
 T_GRID = np.arange(300.0, 3000.0 + 1.0, 100.0)
-
-# priority order: the first library that has a species is the one used (rank 0); evaluated data before QM,
-# higher-level QM before CBS-QB3 RRHO
 LIBRARIES = [
     ("FFCM1(-)", "evaluated"),
     ("GRI-Mech3.0", "evaluated"),
     ("primaryThermoLibrary", "evaluated"),
-    ("Klippenstein_Glarborg2016", "evaluated"),    # Burcat / ATcT polynomials of the Hashemi et al. (2016) model
+    ("Klippenstein_Glarborg2016", "evaluated"),
     ("heavy_oil_ccsdtf12_1dHR", "qm"),
     ("Elliott_OOQOOH", "qm"),
     ("Spiekermann_refining_elementary_reactions", "qm"),
@@ -61,21 +55,16 @@ LIBRARIES = [
     ("Butadiene_Dimerization", "qm"),
     ("s3_5_7_ane", "qm"),
     ("2-BTP_G4", "qm"),
-    ("SABIC_aromatics", "qm"),              # CBS-QB3, RRHO without hindered rotors: lowest priority
+    ("SABIC_aromatics", "qm"),
 ]
 ELEMENTS = {"H", "He", "C", "N", "O", "F", "Ne", "Si", "P", "S", "Cl", "Ar", "Br", "I", "Li"}
 ALLOWED = {"C", "H", "O"}
-
-
-# ───────────────────────── safe reader of RMG library files ─────────────────────────
 class Call(dict):
     """A call such as NASA(...) in a library file: keyword arguments, positional ones in 'args', name in .fn."""
     def __init__(self, fn, args, kw):
         super().__init__(kw)
         self.fn = fn
         self["args"] = args
-
-
 def _eval(node):
     if isinstance(node, ast.Constant):
         return node.value
@@ -99,16 +88,11 @@ def _eval(node):
     if isinstance(node, ast.Name):
         return {"True": True, "False": False, "None": None}.get(node.id, node.id)
     return None
-
-
 def read_library(path):
     tree = ast.parse(Path(path).read_text(encoding="utf-8", errors="replace"), filename=str(path))
     for st in tree.body:
         if isinstance(st, ast.Expr) and isinstance(st.value, ast.Call) and getattr(st.value.func, "id", "") == "entry":
             yield _eval(st.value)
-
-
-# ───────────────────────── adjacency list ─────────────────────────
 def parse_adjlist(text):
     """RMG adjacency list -> (atoms [(element, radicals, charge)], bonds {(i, j): order}, multiplicity or None)."""
     atoms, bonds, mult = [], {}, None
@@ -122,7 +106,7 @@ def parse_adjlist(text):
         tok = line.split()
         idx = int(tok[0])
         k = 1
-        if tok[k].startswith("*"):                          # optional atom label
+        if tok[k].startswith("*"):
             k += 1
         el = tok[k]
         if el not in ELEMENTS:
@@ -133,7 +117,7 @@ def parse_adjlist(text):
                 j, order = t.strip("{}").split(",")
                 key = tuple(sorted((idx, int(j))))
                 bonds[key] = order
-            elif t.isdigit():                               # old format: radical count without 'u'
+            elif t.isdigit():
                 u = int(t)
             elif t[0] == "u":
                 u = int(t[1:])
@@ -147,8 +131,6 @@ def parse_adjlist(text):
             raise ValueError("atoms are not numbered 1..N")
         atoms.append((el, u, c))
     return atoms, bonds, mult
-
-
 def to_smiles(atoms, bonds):
     from rdkit import Chem
     order = {"S": Chem.BondType.SINGLE, "D": Chem.BondType.DOUBLE, "T": Chem.BondType.TRIPLE,
@@ -159,7 +141,7 @@ def to_smiles(atoms, bonds):
         a = Chem.Atom(el)
         a.SetFormalCharge(c)
         a.SetNumRadicalElectrons(u)
-        a.SetNoImplicit(True)                               # RMG lists every H explicitly
+        a.SetNoImplicit(True)
         rw.AddAtom(a)
     for (i, j), o in bonds.items():
         bt = order[o]
@@ -173,8 +155,6 @@ def to_smiles(atoms, bonds):
     Chem.SanitizeMol(m)
     m = Chem.RemoveHs(m)
     return Chem.MolToSmiles(m, isomericSmiles=False)
-
-
 def roundtrip_ok(smiles, n_rad, n_h):
     """False if the SMILES does not carry the adjacency list's radical electrons / H count (e.g. singlet
     carbenes: '[CH2]' is read back as a triplet), so that TEB-Net would see another species."""
@@ -184,15 +164,10 @@ def roundtrip_ok(smiles, n_rad, n_h):
         return False
     return (sum(a.GetNumRadicalElectrons() for a in m.GetAtoms()) == n_rad
             and sum(a.GetTotalNumHs() for a in m.GetAtoms()) == n_h)
-
-
 def canonical(smiles):
     from rdkit import Chem
     m = Chem.MolFromSmiles(smiles)
     return Chem.MolToSmiles(m, isomericSmiles=False) if m is not None else None
-
-
-# ───────────────────────── NASA polynomials ─────────────────────────
 def _kelvin(q):
     if isinstance(q, (int, float)):
         return float(q)
@@ -200,8 +175,6 @@ def _kelvin(q):
     if unit != "K":
         raise ValueError(f"temperature unit {unit!r}")
     return float(v)
-
-
 def nasa_pieces(thermo):
     """NASA(...) -> [(t_min, t_max, coeffs)] sorted by t_min (7 or 9 coefficients)."""
     out = []
@@ -213,15 +186,11 @@ def nasa_pieces(thermo):
             raise ValueError("NASA polynomial without 7 or 9 coefficients")
         out.append((_kelvin(p["Tmin"]), _kelvin(p["Tmax"]), [float(x) for x in coeffs]))
     return sorted(out)
-
-
 def _piece(pieces, T):
     for lo, hi, a in pieces:
         if lo - 1e-6 <= T <= hi + 1e-6:
             return a
     return None
-
-
 def cp_j(pieces, T):
     a = _piece(pieces, T)
     if a is None:
@@ -229,8 +198,6 @@ def cp_j(pieces, T):
     if len(a) == 7:
         return R * sum(a[k] * T ** k for k in range(5))
     return R * (a[0] / T ** 2 + a[1] / T + a[2] + a[3] * T + a[4] * T ** 2 + a[5] * T ** 3 + a[6] * T ** 4)
-
-
 def h_j(pieces, T):
     a = _piece(pieces, T)
     if a is None:
@@ -239,8 +206,6 @@ def h_j(pieces, T):
         return R * T * (sum(a[k] * T ** k / (k + 1) for k in range(5)) + a[5] / T)
     return R * T * (-a[0] / T ** 2 + a[1] * np.log(T) / T + a[2] + a[3] * T / 2 + a[4] * T ** 2 / 3
                     + a[5] * T ** 3 / 4 + a[6] * T ** 4 / 5 + a[7] / T)
-
-
 def s_j(pieces, T):
     a = _piece(pieces, T)
     if a is None:
@@ -249,8 +214,6 @@ def s_j(pieces, T):
         return R * (a[0] * np.log(T) + a[1] * T + a[2] * T ** 2 / 2 + a[3] * T ** 3 / 3 + a[4] * T ** 4 / 4 + a[6])
     return R * (-a[0] / (2 * T ** 2) - a[1] / T + a[2] * np.log(T) + a[3] * T + a[4] * T ** 2 / 2
                 + a[5] * T ** 3 / 3 + a[6] * T ** 4 / 4 + a[8])
-
-
 def covers(pieces, t_lo, t_hi):
     """True if the pieces cover [t_lo, t_hi] without gaps."""
     t = t_lo
@@ -258,9 +221,6 @@ def covers(pieces, t_lo, t_hi):
         if lo <= t + 1e-6 and hi > t:
             t = hi
     return t >= t_hi - 1e-6
-
-
-# ───────────────────────── main ─────────────────────────
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--rmg_db", required=True, help="RMG-database checkout (or its input/thermo/libraries folder)")
@@ -269,17 +229,15 @@ def main():
     ap.add_argument("--deeptherm_csv", default=None, help="adds in_deeptherm (canonical SMILES match)")
     ap.add_argument("--out", default="rmg_cp_reference.csv")
     args = ap.parse_args()
-
     root = Path(args.rmg_db)
     libdir = root if root.name == "libraries" else root / "input" / "thermo" / "libraries"
     libs = [(l, dict(LIBRARIES).get(l, "qm")) for l in args.libraries] if args.libraries else LIBRARIES
     try:
-        import rdkit  # noqa: F401
+        import rdkit
         have_rdkit = True
     except ImportError:
         have_rdkit = False
         print("WARNING: RDKit not found - the smiles column stays empty and cannot be matched to TEB-Net.")
-
     rows, stats = [], []
     for prio, (lib, source) in enumerate(libs):
         path = libdir / f"{lib}.py"
@@ -300,7 +258,7 @@ def main():
                 atoms, bonds, mult = parse_adjlist(mol) if "\n" in mol.strip() or "{" in mol else (None, None, None)
             except (ValueError, IndexError):
                 continue
-            if atoms is None:                                # a SMILES string instead of an adjacency list
+            if atoms is None:
                 if not have_rdkit:
                     continue
                 smi = canonical(mol)
@@ -324,7 +282,7 @@ def main():
             if have_rdkit and bonds is not None:
                 try:
                     smi = to_smiles(atoms, bonds)
-                except Exception as ex:                      # noqa: BLE001 (RDKit raises several types)
+                except Exception as ex:
                     print(f"  {lib}: {e.get('label')} rejected by RDKit ({type(ex).__name__})")
                     continue
             elif have_rdkit:
@@ -347,7 +305,6 @@ def main():
             rows.append(row)
             n["used"] += 1
         stats.append((lib, source, n))
-
     df = pd.DataFrame(rows)
     if df.empty:
         raise SystemExit("no usable entries")
@@ -360,7 +317,6 @@ def main():
         df["in_deeptherm"] = df.smiles.isin(dt).astype(int)
     df = df.sort_values(["rank", "priority", "n_atoms"]).drop(columns="priority")
     df.to_csv(args.out, index=False, float_format="%.6g")
-
     print(f"\n| Library | Source | Entries | NASA | C/H/O, neutral, with C | covering 298–{args.t_need:g} K |")
     print("|---|---|---|---|---|---|")
     for lib, source, n in stats:
@@ -377,7 +333,5 @@ def main():
         print(f"reference Cp(3000 K) / its own Cp_inf: median {ratio.median():.3f} "
               f"(5th–95th pct {ratio.quantile(0.05):.3f}–{ratio.quantile(0.95):.3f})")
     print(f"wrote {args.out}")
-
-
 if __name__ == "__main__":
     main()

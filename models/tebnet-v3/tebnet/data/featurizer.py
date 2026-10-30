@@ -19,44 +19,34 @@ try:
 except ImportError:
     from data.symmetry import compute_symmetry_number
     from data.molecular_geometry import compute_is_linear
-
-ELEMENT_VOCAB = [1, 6, 7, 8, 9, 15, 16, 17, 35, 53]  # H C N O F P S Cl Br I
-COMP_DIM = len(ELEMENT_VOCAB) + 1  # +1 = "other" bucket for anything off-vocabulary
-AUX_DIM_MINIMAL = 4   # v14 core-4 aux vector
-AUX_DIM_EXTENDED = 8  # v14.1 aux vector (core-4 + 4 topology descriptors)
+ELEMENT_VOCAB = [1, 6, 7, 8, 9, 15, 16, 17, 35, 53]
+COMP_DIM = len(ELEMENT_VOCAB) + 1
+AUX_DIM_MINIMAL = 4
+AUX_DIM_EXTENDED = 8
 AUX_DIM_ROUTED = 16
 ROUTE_H_IDX = [3, 5, 6, 8, 10]
 ROUTE_S_IDX = [0, 1, 2, 4, 5, 7, 9, 12, 13, 14, 15]
 ROUTE_CP_IDX = [1, 2, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15]
-FEATURES_VERSION = "v15.3"   # bump whenever a feature definition (incl. symmetry.py) changes
+FEATURES_VERSION = "v15.3"
 COMP_NAMES = ["n_H", "n_C", "n_N", "n_O", "n_F", "n_P", "n_S", "n_Cl", "n_Br", "n_I", "n_other"]
 assert len(COMP_NAMES) == COMP_DIM
 PHYS_V15_NAMES = [
-    # rotational / electronic entropy terms
     "log_sigma", "is_linear", "is_monatomic", "n_atoms_H", "n_heavy",
     "n_rad_e", "ln_mult", "is_chiral", "net_charge",
-    # internal rotors (thermo definition: includes CH3/OH rotors, excludes ring & linear-axis bonds)
     "n_rotors", "n_methyl",
-    # rings (Benson ring-strain corrections are per ring type)
     "n_rings", "n_arom_rings", "ring3", "ring4", "ring5", "ring6", "ring7p",
     "n_fused_bonds", "n_bridgehead", "n_spiro",
-    # hybridisation / bonding
     "frac_sp3", "frac_sp2", "frac_sp",
     "n_single", "n_double", "n_triple", "n_arom_bond",
-    # v15.2 — element-pair bond counts (bond additivity) and X–H counts
     "n_CC1", "n_CC2", "n_CC3", "n_CCa", "n_CO1", "n_CO2", "n_COa", "n_OO1", "n_CH", "n_OH",
-    # v15.2 — strained unsaturated rings (cyclopropene/cyclobutene-type, cyclic allenes)
     "ring3_unsat", "ring4_unsat", "ring_allene",
-    # v15.2 — radical-centre types (Benson HBI-like: C–H BDE of the parent differs by up to ~30 kcal/mol)
     "rad_alkyl_p", "rad_alkyl_s", "rad_alkyl_t", "rad_alpha_O", "rad_allylic", "rad_alpha_CO",
     "rad_vinyl", "rad_aryl", "rad_acyl", "rad_alkoxy", "rad_peroxy", "rad_ethynyl", "rad_vinoxy", "rad_captodative",
-    # 3-D (ETKDG conformer) — optional
     "log_I_rot", "log_r_gyr", "moi_valid",
 ]
 V15_NAMES = COMP_NAMES + PHYS_V15_NAMES
 V15_DIM = len(V15_NAMES)
 FEATS_3D = {"log_I_rot", "log_r_gyr", "moi_valid"}
-# Network inputs per branch (normalised).
 _ROUTE_V15 = {
     "h": ["n_rad_e", "net_charge", "n_rings", "n_arom_rings", "ring3", "ring4", "ring5", "ring6",
           "ring7p", "n_fused_bonds", "n_bridgehead", "n_spiro", "frac_sp3", "frac_sp2", "frac_sp",
@@ -83,7 +73,6 @@ _BASE_V15_PHYS = {
     "cp": ["is_linear", "is_monatomic", "n_rotors", "n_methyl", "n_rings", "n_arom_rings", "n_rad_e",
            "n_double", "n_triple", "n_arom_bond"],
 }
-
 class ThermoAtomFeaturizer:
     """Multi-hot atom featurizer with radical electron support."""
     def __init__(
@@ -118,15 +107,13 @@ class ThermoAtomFeaturizer:
             1 + len(self.chiral_tags),
             1 + len(self.num_Hs),
             1 + len(self.hybridizations),
-            1,  # is_aromatic
-            1,  # scaled mass
+            1,
+            1,
             1 + len(self.num_radical_electrons_map),
         ]
         self.__size = sum(subfeat_sizes)
-
     def __len__(self) -> int:
         return self.__size
-
     def __call__(self, a: Atom | None) -> np.ndarray:
         x = np.zeros(self.__size)
         if a is None:
@@ -151,7 +138,6 @@ class ThermoAtomFeaturizer:
         j = self.num_radical_electrons_map.get(n_rad, len(self.num_radical_electrons_map))
         x[i + j] = 1
         return x
-
     @classmethod
     def v2_radical(cls) -> "ThermoAtomFeaturizer":
         return cls(
@@ -171,7 +157,6 @@ class ThermoAtomFeaturizer:
             ],
             num_radical_electrons=[0, 1, 2, 3],
         )
-
 def compute_composition_vector(mol: Chem.Mol) -> np.ndarray:
     """Element-count vector over ELEMENT_VOCAB, taken over the H-explicit molecule.
 
@@ -188,31 +173,25 @@ def compute_composition_vector(mol: Chem.Mol) -> np.ndarray:
         z = a.GetAtomicNum()
         vec[idx.get(z, COMP_DIM - 1)] += 1.0
     return vec
-
 def compute_physic_features(mol: Chem.Mol) -> list[float]:
     """v14 4-D core physics vector."""
     mol_h = Chem.AddHs(mol)
     N = float(mol_h.GetNumAtoms())
-
     try:
         sigma = compute_symmetry_number(mol)
     except Exception:
         sigma = 1
-
     try:
         is_linear = float(compute_is_linear(mol))
     except Exception:
         is_linear = 0.0
-
     radical_e = float(sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms()))
-
     return [
-        float(np.log(max(sigma, 1))),  # 1. log(σ)
-        is_linear,                     # 2. is_linear
-        N,                             # 3. total atom count (with H)
-        radical_e,                     # 4. radical electron count
+        float(np.log(max(sigma, 1))),
+        is_linear,
+        N,
+        radical_e,
     ]
-
 def compute_physic_features_extended(mol: Chem.Mol) -> list[float]:
     """v14.1 8-D physics/topology vector = core-4 + 4 cheap graph descriptors.
 
@@ -226,13 +205,12 @@ def compute_physic_features_extended(mol: Chem.Mol) -> list[float]:
     explicit global scalars gives the read-out a stronger, size-aware signal for
     entropy and heat capacity at negligible parameter cost.
     """
-    base = compute_physic_features(mol)  # 4-D
+    base = compute_physic_features(mol)
     n_rot = float(rdMolDescriptors.CalcNumRotatableBonds(mol))
     n_ring = float(rdMolDescriptors.CalcNumRings(mol))
     n_arom = float(rdMolDescriptors.CalcNumAromaticRings(mol))
     n_heavy = float(mol.GetNumHeavyAtoms())
     return base + [n_rot, n_ring, n_arom, n_heavy]
-
 def compute_physic_features_routed(mol: Chem.Mol) -> list[float]:
     """v14.4 routed 12-D feature vector (see ROUTE_*_IDX for per-property slices).
 
@@ -241,9 +219,8 @@ def compute_physic_features_routed(mol: Chem.Mol) -> list[float]:
     determinants. All values come from the 2D graph — no QM.
     """
     mol_h = Chem.AddHs(mol)
-    N = float(mol_h.GetNumAtoms())            # 2  atom count incl. explicit H
-    n_heavy = float(mol.GetNumHeavyAtoms())   # 7
-
+    N = float(mol_h.GetNumAtoms())
+    n_heavy = float(mol.GetNumHeavyAtoms())
     try:
         sigma = compute_symmetry_number(mol)
     except Exception:
@@ -252,13 +229,11 @@ def compute_physic_features_routed(mol: Chem.Mol) -> list[float]:
         is_linear = float(compute_is_linear(mol))
     except Exception:
         is_linear = 0.0
-
-    radical_e = float(sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms()))  # 3
-    net_charge = float(Chem.GetFormalCharge(mol))                               # 8
-    n_rot = float(rdMolDescriptors.CalcNumRotatableBonds(mol))                  # 4
-    n_ring = float(rdMolDescriptors.CalcNumRings(mol))                          # 5
-    n_arom = float(rdMolDescriptors.CalcNumAromaticRings(mol))                  # 6
-
+    radical_e = float(sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms()))
+    net_charge = float(Chem.GetFormalCharge(mol))
+    n_rot = float(rdMolDescriptors.CalcNumRotatableBonds(mol))
+    n_ring = float(rdMolDescriptors.CalcNumRings(mol))
+    n_arom = float(rdMolDescriptors.CalcNumAromaticRings(mol))
     def _get_moi(m):
         try:
             from rdkit.Chem import AllChem
@@ -272,14 +247,12 @@ def compute_physic_features_routed(mol: Chem.Mol) -> list[float]:
             masses = np.array([a.GetMass() for a in mh.GetAtoms()])
             com = np.average(pts, axis=0, weights=masses)
             pts_c = pts - com
-            
             I_xx = np.sum(masses * (pts_c[:, 1]**2 + pts_c[:, 2]**2))
             I_yy = np.sum(masses * (pts_c[:, 0]**2 + pts_c[:, 2]**2))
             I_zz = np.sum(masses * (pts_c[:, 0]**2 + pts_c[:, 1]**2))
             I_xy = -np.sum(masses * pts_c[:, 0] * pts_c[:, 1])
             I_xz = -np.sum(masses * pts_c[:, 0] * pts_c[:, 2])
             I_yz = -np.sum(masses * pts_c[:, 1] * pts_c[:, 2])
-            
             I_tensor = np.array([
                 [I_xx, I_xy, I_xz],
                 [I_xy, I_yy, I_yz],
@@ -288,7 +261,6 @@ def compute_physic_features_routed(mol: Chem.Mol) -> list[float]:
             eigenvalues = np.linalg.eigvals(I_tensor)
             I_A, I_B, I_C = sorted([max(0.0, e.real) for e in eigenvalues])
             r_gyr = np.sqrt(np.sum(masses * np.sum(pts_c**2, axis=1)) / np.sum(masses))
-            
             return [
                 float(np.log(I_A + 1e-4)), 
                 float(np.log(I_B + 1e-4)), 
@@ -297,10 +269,7 @@ def compute_physic_features_routed(mol: Chem.Mol) -> list[float]:
             ]
         except Exception:
             return [0.0, 0.0, 0.0, 0.0]
-
     moi = _get_moi(mol)
-
-    # hybridization fractions over heavy atoms (mol has implicit H → heavy only)
     n_atoms = max(mol.GetNumAtoms(), 1)
     n_sp3 = n_sp2 = n_sp = 0
     for a in mol.GetAtoms():
@@ -311,26 +280,24 @@ def compute_physic_features_routed(mol: Chem.Mol) -> list[float]:
             n_sp2 += 1
         elif hyb == HybridizationType.SP:
             n_sp += 1
-
     return [
-        float(np.log(max(sigma, 1))),   # 0  log_sigma
-        is_linear,                      # 1  is_linear
-        N,                              # 2  n_atoms_H
-        radical_e,                      # 3  radical_e
-        n_rot,                          # 4  n_rotatable
-        n_ring,                         # 5  n_rings
-        n_arom,                         # 6  n_aromatic_rings
-        n_heavy,                        # 7  n_heavy
-        net_charge,                     # 8  net_charge
-        float(n_sp3 / n_atoms),         # 9  frac_sp3
-        float(n_sp2 / n_atoms),         # 10 frac_sp2
-        float(n_sp / n_atoms),          # 11 frac_sp
-        moi[0],                         # 12 log_I_A
-        moi[1],                         # 13 log_I_B
-        moi[2],                         # 14 log_I_C
-        moi[3],                         # 15 log_r_gyr
+        float(np.log(max(sigma, 1))),
+        is_linear,
+        N,
+        radical_e,
+        n_rot,
+        n_ring,
+        n_arom,
+        n_heavy,
+        net_charge,
+        float(n_sp3 / n_atoms),
+        float(n_sp2 / n_atoms),
+        float(n_sp / n_atoms),
+        moi[0],
+        moi[1],
+        moi[2],
+        moi[3],
     ]
-
 def compute_auxiliary_features(mol: Chem.Mol, precomputed_physic: np.ndarray | list[float] | str | None = None, feature_set: str = "extended",) -> np.ndarray:
     """Compute the auxiliary feature vector.
     feature_set="minimal"  -> 4-D  (reproduces v14)
@@ -351,15 +318,12 @@ def compute_auxiliary_features(mol: Chem.Mol, precomputed_physic: np.ndarray | l
                 import ast
                 precomputed_physic = ast.literal_eval(precomputed_physic)
         arr = np.array(precomputed_physic, dtype=np.float32)
-        # Legacy v13 (26-D) → extract the core-4 used here.
         if len(arr) > AUX_DIM_EXTENDED:
             arr = np.array([arr[0], arr[1], arr[2], arr[8]], dtype=np.float32)
         return arr
-
     if feature_set == "minimal":
         return np.array(compute_physic_features(mol), dtype=np.float32)
     return np.array(compute_physic_features_extended(mol), dtype=np.float32)
-
 class CleanBondFeaturizer(VectorFeaturizer[Bond]):
     """Bond featurizer without 3D conformer dependency.
 
@@ -380,56 +344,40 @@ class CleanBondFeaturizer(VectorFeaturizer[Bond]):
         ]
         self.stereo = stereos or range(6)
         self.ring_sizes = [3, 4, 5, 6, 7, 8]
-
     def __len__(self):
-        # 1(null) + len(bond_types) + 1(conjugated) + 1(aromatic) + 1(ring)
-        # + len(ring_sizes) + (len(stereos)+1) + 1(bond_order)
         return 1 + len(self.bond_types) + 1 + 1 + 1 + len(self.ring_sizes) + (len(self.stereo) + 1) + 1
-
     def __call__(self, b: Bond) -> np.ndarray:
         x = np.zeros(len(self), dtype=np.float32)
-
         if b is None:
             x[0] = 1
             return x
-
         i = 1
         bond_type = b.GetBondType()
         bt_bit, size = self.one_hot_index(bond_type, self.bond_types)
         if bt_bit != size:
             x[i + bt_bit] = 1
         i += size - 1
-
         x[i] = int(b.GetIsConjugated())
         x[i + 1] = int(b.GetIsAromatic())
         x[i + 2] = int(b.IsInRing())
         i += 3
-
-        # Ring sizes
         for rs_idx, rs in enumerate(self.ring_sizes):
             x[i + rs_idx] = int(b.IsInRingSize(rs))
         i += len(self.ring_sizes)
-
         stereo_bit, _ = self.one_hot_index(int(b.GetStereo()), self.stereo)
         x[i + stereo_bit] = 1
         i += len(self.stereo) + 1
-
-        # Bond order explicit float (no bond_length)
         try:
             x[i] = b.GetBondTypeAsDouble()
         except Exception:
             x[i] = 1.0
-
         return x
-
     @classmethod
     def one_hot_index(cls, x, xs: Sequence) -> tuple[int, int]:
         n = len(xs)
         return (xs.index(x), n + 1) if x in xs else (n, n + 1)
-
 def _drop_3d(names: list[str], use_3d: bool) -> list[str]:
     return list(names) if use_3d else [n for n in names if n not in FEATS_3D]
-
 def v15_route_names(role: str, route_mode: str = "grouped", use_3d: bool = True) -> list[str]:
     """Columns fed (normalised) to branch `role` in {"h","s","cp"}."""
     if route_mode == "full":
@@ -437,7 +385,6 @@ def v15_route_names(role: str, route_mode: str = "grouped", use_3d: bool = True)
     if route_mode != "grouped":
         raise ValueError(f"route_mode must be 'grouped' or 'full', got {route_mode!r}")
     return _drop_3d(_ROUTE_V15[role], use_3d)
-
 def v15_base_names(role: str, baseline: str = "physics", use_3d: bool = True) -> list[str]:
     """Columns of the frozen linear baseline for `role`.
 
@@ -449,7 +396,6 @@ def v15_base_names(role: str, baseline: str = "physics", use_3d: bool = True) ->
     if baseline != "physics":
         raise ValueError(f"baseline must be 'composition' or 'physics', got {baseline!r}")
     return COMP_NAMES + _drop_3d(_BASE_V15_PHYS[role], use_3d)
-
 class ThermoAtomFeaturizerV3(ThermoAtomFeaturizer):
     """v2_radical features + [in_ring, in_ring_size(3..8), #rings (0..3+), is_carbenium, radical_type].
 
@@ -459,30 +405,25 @@ class ThermoAtomFeaturizerV3(ThermoAtomFeaturizer):
     doesn't have to infer them from scratch.
     """
     RING_SIZES = (3, 4, 5, 6, 7, 8)
-    N_RING_CHOICES = (0, 1, 2)          # + one bucket for >= 3
+    N_RING_CHOICES = (0, 1, 2)
     RADICAL_TYPES = [
         "rad_alkyl_p", "rad_alkyl_s", "rad_alkyl_t", "rad_alpha_O", "rad_allylic", "rad_alpha_CO",
         "rad_vinyl", "rad_aryl", "rad_acyl", "rad_alkoxy", "rad_peroxy", "rad_ethynyl", "rad_vinoxy", "rad_captodative"
     ]
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._n_extra = (
             1 + len(self.RING_SIZES) + len(self.N_RING_CHOICES) + 1
-            + 1  # is_carbenium
-            + len(self.RADICAL_TYPES) + 1  # one-hot radical type + "none" bucket
+            + 1
+            + len(self.RADICAL_TYPES) + 1
         )
-
     def __len__(self) -> int:
         return super().__len__() + self._n_extra
-
     def __call__(self, a: Atom | None) -> np.ndarray:
         base = super().__call__(a)
         extra = np.zeros(self._n_extra)
         if a is None:
             return np.concatenate([base, extra])
-        
-        # 1. Ring features
         extra[0] = float(a.IsInRing())
         for i, k in enumerate(self.RING_SIZES):
             extra[1 + i] = float(a.IsInRingSize(k))
@@ -493,27 +434,20 @@ class ThermoAtomFeaturizerV3(ThermoAtomFeaturizer):
         off = 1 + len(self.RING_SIZES)
         j = self.N_RING_CHOICES.index(n_r) if n_r in self.N_RING_CHOICES else len(self.N_RING_CHOICES)
         extra[off + j] = 1.0
-        
-        # 2. Carbenium Ion feature
         off += len(self.N_RING_CHOICES) + 1
         is_carbenium = (a.GetAtomicNum() == 6 and a.GetFormalCharge() == 1)
         extra[off] = float(is_carbenium)
-        
-        # 3. Radical Center Type features
         off += 1
         if a.GetNumRadicalElectrons() > 0:
             rtype = radical_center_type(a)
             idx = self.RADICAL_TYPES.index(rtype) if rtype in self.RADICAL_TYPES else len(self.RADICAL_TYPES)
             extra[off + idx] = 1.0
         else:
-            extra[off + len(self.RADICAL_TYPES)] = 1.0  # none
-
+            extra[off + len(self.RADICAL_TYPES)] = 1.0
         return np.concatenate([base, extra])
-
     @classmethod
     def thermo(cls) -> "ThermoAtomFeaturizerV3":
-        return cls.v2_radical()          # same vocab as v2_radical, plus extra block
-
+        return cls.v2_radical()
 def is_linear_fast(mol: Chem.Mol) -> float:
     """1.0 if the molecule is linear. Monatomic species return 0.0 (see is_monatomic).
 
@@ -534,7 +468,6 @@ def is_linear_fast(mol: Chem.Mol) -> float:
         return float(compute_is_linear(mol))
     except Exception:
         return 0.0
-
 def _moi_features(mol: Chem.Mol, n_atoms_h: int, is_linear: float) -> tuple[float, float, float]:
     """(log_I_rot, log_r_gyr, valid).
 
@@ -562,13 +495,12 @@ def _moi_features(mol: Chem.Mol, n_atoms_h: int, is_linear: float) -> tuple[floa
         x = pts - com
         r2 = (x ** 2).sum(1)
         inertia = np.eye(3) * float((m * r2).sum()) - (x.T * m) @ x
-        ev = np.clip(np.linalg.eigvalsh(inertia), 1e-3, None)        # ascending
+        ev = np.clip(np.linalg.eigvalsh(inertia), 1e-3, None)
         log_i = float(np.log(ev[2])) if is_linear >= 0.5 else float(0.5 * np.log(ev).sum())
         r_gyr = float(np.sqrt((m * r2).sum() / m.sum()))
         return log_i, float(np.log(max(r_gyr, 1e-3))), 1.0
     except Exception:
         return 0.0, 0.0, 0.0
-
 def sssr_bond_rings(mol: Chem.Mol) -> list[tuple[int, ...]]:
     """Smallest set of smallest rings as bond-index tuples (size = cyclomatic number).
 
@@ -596,46 +528,38 @@ def sssr_bond_rings(mol: Chem.Mol) -> list[tuple[int, ...]]:
                 chosen.append(ring)
                 break
     return chosen
-
 def radical_center_type(a: Atom) -> str | None:
     """HBI-like class of a radical centre (priority: σ-radicals > resonance > α-heteroatom > alkyl)."""
     z = a.GetAtomicNum()
     heavy_nb = [n for n in a.GetNeighbors() if n.GetAtomicNum() > 1]
-
-    def _unsat(n):  # atom carries a double / triple / aromatic bond
+    def _unsat(n):
         return n.GetIsAromatic() or any(
             bb.GetBondType() in (Chem.BondType.DOUBLE, Chem.BondType.TRIPLE) for bb in n.GetBonds())
-
     if z == 8:
         if any(n.GetAtomicNum() == 8 for n in heavy_nb):
-            return "rad_peroxy"                               # ROO–H ≈ 86 kcal/mol
+            return "rad_peroxy"
         if any(n.GetAtomicNum() == 6 and _unsat(n) for n in heavy_nb):
-            return "rad_vinoxy"                               # enol / phenol O–H ≈ 85–88 (resonance)
-        return "rad_alkoxy"                                   # RO–H ≈ 105
+            return "rad_vinoxy"
+        return "rad_alkoxy"
     if z != 6:
         return None
     if a.GetIsAromatic():
         return "rad_aryl"
     for b in a.GetBonds():
         if b.GetBondType() == Chem.BondType.TRIPLE:
-            return "rad_ethynyl"                              # HC≡C–H ≈ 133
+            return "rad_ethynyl"
     for b in a.GetBonds():
         if b.GetBondType() == Chem.BondType.DOUBLE:
             return "rad_acyl" if b.GetOtherAtom(a).GetAtomicNum() == 8 else "rad_vinyl"
-
     def _is_carbonyl_c(n):
         return n.GetAtomicNum() == 6 and any(
             bb.GetBondType() == Chem.BondType.DOUBLE and bb.GetOtherAtom(n).GetAtomicNum() == 8
             for bb in n.GetBonds())
-
-    # captodative: donor (–O–) and acceptor (C=O) on the same radical carbon — strongly stabilised
     if any(_is_carbonyl_c(n) for n in heavy_nb) and any(n.GetAtomicNum() == 8 for n in heavy_nb):
         return "rad_captodative"
-
     def _has_pi(n, exclude):
         return any(bb.GetBondType() in (Chem.BondType.DOUBLE, Chem.BondType.TRIPLE, Chem.BondType.AROMATIC)
                    and bb.GetOtherAtomIdx(n.GetIdx()) != exclude for bb in n.GetBonds())
-
     for n in heavy_nb:
         if n.GetAtomicNum() == 6 and _has_pi(n, a.GetIdx()):
             pi_to_O = any(bb.GetBondType() == Chem.BondType.DOUBLE and bb.GetOtherAtom(n).GetAtomicNum() == 8
@@ -650,40 +574,32 @@ def radical_center_type(a: Atom) -> str | None:
         return "rad_alpha_O"
     k = len(heavy_nb)
     return "rad_alkyl_p" if k <= 1 else ("rad_alkyl_s" if k == 2 else "rad_alkyl_t")
-
 def compute_v15_features(mol: Chem.Mol, use_3d: bool = True) -> dict[str, float]:
     """Named v15 features. Never raises for a valid RDKit mol (falls back to 0)."""
     f: dict[str, float] = {n: 0.0 for n in V15_NAMES}
-
     comp = compute_composition_vector(mol)
     for n, v in zip(COMP_NAMES, comp):
         f[n] = float(v)
-
     heavy = [a for a in mol.GetAtoms() if a.GetAtomicNum() > 1]
     n_atoms_h = int(Chem.AddHs(mol).GetNumAtoms())
     f["n_atoms_H"] = float(n_atoms_h)
     f["n_heavy"] = float(mol.GetNumHeavyAtoms())
     f["is_monatomic"] = float(n_atoms_h == 1)
-
     try:
         sigma = float(compute_symmetry_number(mol))
     except Exception:
         sigma = 1.0
     f["log_sigma"] = float(np.log(max(sigma, 1.0)))
     f["is_linear"] = is_linear_fast(mol)
-
     n_rad = float(sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms()))
     f["n_rad_e"] = n_rad
-    f["ln_mult"] = float(np.log(n_rad + 1.0))          # high-spin assumption: 2S+1 = n_rad+1
+    f["ln_mult"] = float(np.log(n_rad + 1.0))
     f["net_charge"] = float(Chem.GetFormalCharge(mol))
-
     try:
         centers = Chem.FindMolChiralCenters(mol, includeUnassigned=True)
         f["is_chiral"] = float(len(centers) > 0)
     except Exception:
         f["is_chiral"] = 0.0
-
-    # internal rotors (thermo definition)
     n_rot = 0
     for b in mol.GetBonds():
         a1, a2 = b.GetBeginAtom(), b.GetEndAtom()
@@ -703,10 +619,6 @@ def compute_v15_features(mol: Chem.Mol, use_3d: bool = True) -> dict[str, float]
         and sum(nb.GetAtomicNum() > 1 for nb in a.GetNeighbors()) == 1
         and a.GetNumRadicalElectrons() == 0 and a.GetFormalCharge() == 0
     ))
-
-    # rings — true SSSR (v15.2). RDKit's default ring info is the *symmetrized* SSSR, which lists
-    # 3 six-membered rings for bicyclo[2.2.2]octane (SSSR: 2). With a ring-strain coefficient per
-    # ring that over-counted strain in bridged polycyclics (seen as +12–17 kcal/mol errors).
     try:
         rings = sssr_bond_rings(mol)
         sizes = [len(r) for r in rings]
@@ -733,15 +645,11 @@ def compute_v15_features(mol: Chem.Mol, use_3d: bool = True) -> dict[str, float]
         f["n_spiro"] = float(rdMolDescriptors.CalcNumSpiroAtoms(mol))
     except Exception:
         pass
-
-    # hybridisation fractions over heavy atoms
     n_hv = max(len(heavy), 1)
     hyb = [a.GetHybridization() for a in heavy]
     f["frac_sp3"] = sum(h == HybridizationType.SP3 for h in hyb) / n_hv
     f["frac_sp2"] = sum(h == HybridizationType.SP2 for h in hyb) / n_hv
     f["frac_sp"] = sum(h == HybridizationType.SP for h in hyb) / n_hv
-
-    # heavy-atom bond-type counts (X–H bonds are implied by n_H)
     for b in mol.GetBonds():
         if b.GetBeginAtom().GetAtomicNum() == 1 or b.GetEndAtom().GetAtomicNum() == 1:
             continue
@@ -754,8 +662,6 @@ def compute_v15_features(mol: Chem.Mol, use_3d: bool = True) -> dict[str, float]
             f["n_triple"] += 1
         elif bt == Chem.BondType.AROMATIC:
             f["n_arom_bond"] += 1
-
-    # element-pair bond counts (v15.2): O–O, C–O, C=O … get their own additivity terms
     pair_name = {(6, 6, "S"): "n_CC1", (6, 6, "D"): "n_CC2", (6, 6, "T"): "n_CC3", (6, 6, "A"): "n_CCa",
                  (6, 8, "S"): "n_CO1", (6, 8, "D"): "n_CO2", (6, 8, "A"): "n_COa", (8, 8, "S"): "n_OO1"}
     bt_code = {Chem.BondType.SINGLE: "S", Chem.BondType.DOUBLE: "D", Chem.BondType.TRIPLE: "T",
@@ -767,24 +673,19 @@ def compute_v15_features(mol: Chem.Mol, use_3d: bool = True) -> dict[str, float]
             f[name] += 1
     f["n_CH"] = float(sum(a.GetTotalNumHs(includeNeighbors=True) for a in mol.GetAtoms() if a.GetAtomicNum() == 6))
     f["n_OH"] = float(sum(a.GetTotalNumHs(includeNeighbors=True) for a in mol.GetAtoms() if a.GetAtomicNum() == 8))
-
-    # radical-centre types (v15.2)
     for a in mol.GetAtoms():
         if a.GetNumRadicalElectrons() == 0:
             continue
         key = radical_center_type(a)
         if key:
             f[key] += 1
-
     if use_3d:
         log_i, log_r, ok = _moi_features(mol, n_atoms_h, f["is_linear"])
         f["log_I_rot"], f["log_r_gyr"], f["moi_valid"] = log_i, log_r, ok
     return f
-
 def compute_v15_vector(mol: Chem.Mol, use_3d: bool = True) -> np.ndarray:
     f = compute_v15_features(mol, use_3d=use_3d)
     return np.array([f[n] for n in V15_NAMES], dtype=np.float32)
-
 def compute_v15_from_smiles(smiles: str, use_3d: bool = True) -> list[float] | None:
     """For the multiprocessing precompute script. None if SMILES is invalid."""
     if not isinstance(smiles, str) or not smiles.strip():
@@ -796,51 +697,27 @@ def compute_v15_from_smiles(smiles: str, use_3d: bool = True) -> list[float] | N
         return compute_v15_vector(mol, use_3d=use_3d).tolist()
     except Exception:
         return None
-
 def physics_cache_path(csv_path) -> Path:
     """<dir>/<stem>.physics_v15.csv next to the dataset CSV."""
     p = Path(csv_path)
     return p.with_name(f"{p.stem}.physics_v15.csv")
-
-# ═══════════════════════════════════════════════════════════════════════════════════════════════
-# Entropy prior v2 (opt-in; the v15 vector, V15_NAMES and FEATURES_VERSION are unchanged, so old
-# caches and checkpoints keep working).
-#
-# Idea: the parts of S°298 that statistical mechanics gives exactly are computed, not fitted:
-#     S_trans  Sackur–Tetrode, from the molar mass                         (sub-linear in size)
-#     S_rot    rigid rotor, from the moments of inertia of the LOWEST-ENERGY conformer, without σ
-#    −R ln σ   symmetry number (convention of compute_symmetry_number)
-#     R ln(2S+1) spin degeneracy (high-spin: 2S+1 = n_rad + 1)
-# and the ridge fits only the additive remainder (vibrations, internal rotors) on bond / group /
-# radical-centre counts. In v15 the S prior fits ln σ, ln(2S+1) and ½ ln(I_A I_B I_C) freely
-# (−0.33 R, +4.47 R, +1.36 R against −1, +1, +1); a free inertia term with a coefficient > 1 lets a
-# sub-linear quantity carry part of the per-CH2 entropy inside the training range, which then goes
-# missing when chains are extrapolated. v15 also takes the inertia of ONE random ETKDG conformer;
-# for long chains that conformer is usually folded, so ln I grows even more slowly than it should.
-# ═══════════════════════════════════════════════════════════════════════════════════════════════
 ENTROPY_V2_VERSION = "e2.0"
 ENTROPY_V2_NAMES = ["S_trans_R", "S_rot_R", "log_I_rot_min", "moi2_invalid"]
 _KB, _HP, _AMU, _ANG2 = 1.380649e-23, 6.62607015e-34, 1.66053906660e-27, 1e-20
-_T_REF, _P_REF = 298.15, 1.0e5          # 1 bar; a 1 atm convention only shifts the intercept
-
+_T_REF, _P_REF = 298.15, 1.0e5
 _RAD_TYPES = ["rad_alkyl_p", "rad_alkyl_s", "rad_alkyl_t", "rad_alpha_O", "rad_allylic", "rad_alpha_CO",
               "rad_vinyl", "rad_aryl", "rad_acyl", "rad_alkoxy", "rad_peroxy", "rad_ethynyl", "rad_vinoxy",
               "rad_captodative"]
 _BOND_PAIRS = ["n_CC1", "n_CC2", "n_CC3", "n_CCa", "n_CO1", "n_CO2", "n_COa", "n_OO1", "n_CH", "n_OH"]
-# additive (fitted) part of the v2 entropy prior; resonance-stabilised radical centres lose an internal
-# rotor that the bond-based rotor count still counts, hence the centre types
 _S_V2_FREE = ["is_chiral", "is_linear", "is_monatomic", "n_rotors", "n_methyl",
               "ring3", "ring4", "ring5", "ring6", "ring7p", "n_arom_rings",
               "n_double", "n_triple", "n_arom_bond", *_BOND_PAIRS, "n_rad_e", *_RAD_TYPES, "moi2_invalid"]
-# fixed coefficients in units of R (J mol-1 K-1 after multiplying by R)
 _S_V2_FIXED = {
-    "v2_rot":   {"S_trans_R": 1.0, "S_rot_R": 1.0},                                       # σ and spin fitted
-    "v2_exact": {"S_trans_R": 1.0, "S_rot_R": 1.0, "log_sigma": -1.0, "ln_mult": 1.0},    # all four exact
-    "v2_free":  {},                                                                       # diagnostic only
+    "v2_rot":   {"S_trans_R": 1.0, "S_rot_R": 1.0},
+    "v2_exact": {"S_trans_R": 1.0, "S_rot_R": 1.0, "log_sigma": -1.0, "ln_mult": 1.0},
+    "v2_free":  {},
 }
 S_PRIOR_VARIANTS = ("v1", "v1_minconf", "v2_free", "v2_rot", "v2_exact")
-
-
 def s_prior_columns(variant: str) -> tuple[list[str], dict[str, float]]:
     """(column names, fixed coefficients in units of R) of the S prior.
 
@@ -862,14 +739,10 @@ def s_prior_columns(variant: str) -> tuple[list[str], dict[str, float]]:
     fixed = _S_V2_FIXED[variant]
     exact = ["S_trans_R", "S_rot_R", "log_sigma", "ln_mult"]
     return COMP_NAMES + exact + _S_V2_FREE, dict(fixed)
-
-
 def s_trans_over_R(mass_amu: float, T: float = _T_REF, p: float = _P_REF) -> float:
     """Sackur–Tetrode translational entropy / R of an ideal gas."""
     m = mass_amu * _AMU
     return float(2.5 + 1.5 * np.log(2.0 * np.pi * m * _KB * T / _HP ** 2) + np.log(_KB * T / p))
-
-
 def s_rot_over_R(moments_amu_A2, linear: bool, T: float = _T_REF) -> float:
     """Classical rigid-rotor entropy / R for σ = 1 (subtract ln σ separately). Moments in amu·Å²."""
     c = 8.0 * np.pi ** 2 * _KB * T / _HP ** 2
@@ -877,8 +750,6 @@ def s_rot_over_R(moments_amu_A2, linear: bool, T: float = _T_REF) -> float:
     if linear:
         return float(1.0 + np.log(c * ev[2]))
     return float(1.5 + 0.5 * np.log(np.pi) + 1.5 * np.log(c) + 0.5 * np.log(ev).sum())
-
-
 def _all_anti_conformer(mh: Chem.Mol, conf) -> "Chem.Conformer":
     """Copy of `conf` with every heavy-atom torsion about an acyclic single bond set to 180° (the extended
     chain is the gas-phase minimum of n-alkanes and a good start for other chains)."""
@@ -901,8 +772,6 @@ def _all_anti_conformer(mh: Chem.Mol, conf) -> "Chem.Conformer":
         except Exception:
             pass
     return c
-
-
 def lowest_conformer_moments(mol: Chem.Mol, n_conf: int = 10, seed: int = 42, max_iters: int = 1000):
     """Principal moments (amu·Å², ascending) of the lowest force-field energy conformer among `n_conf` ETKDG
     conformers plus one all-anti conformer; MMFF94 if parametrised, else UFF (radicals), else unoptimised.
@@ -947,8 +816,6 @@ def lowest_conformer_moments(mol: Chem.Mol, n_conf: int = 10, seed: int = 42, ma
     x = pts - (pts * m[:, None]).sum(0) / m.sum()
     inertia = np.eye(3) * float((m * (x ** 2).sum(1)).sum()) - (x.T * m) @ x
     return np.clip(np.linalg.eigvalsh(inertia), 1e-3, None), ff
-
-
 def compute_entropy_v2_terms(mol: Chem.Mol, n_conf: int = 10, seed: int = 42) -> dict[str, float | str]:
     """Values of ENTROPY_V2_NAMES for one molecule (+ 'ff', the force field used). Never raises."""
     out: dict[str, float | str] = {"S_trans_R": 0.0, "S_rot_R": 0.0, "log_I_rot_min": 0.0, "moi2_invalid": 1.0,
@@ -971,8 +838,6 @@ def compute_entropy_v2_terms(mol: Chem.Mol, n_conf: int = 10, seed: int = 42) ->
     except Exception:
         pass
     return out
-
-
 def entropy_v2_from_smiles(smiles: str, n_conf: int = 10, seed: int = 42) -> dict | None:
     """Multiprocessing helper. None for an invalid SMILES."""
     mol = Chem.MolFromSmiles(str(smiles).strip()) if isinstance(smiles, str) else None
@@ -981,14 +846,10 @@ def entropy_v2_from_smiles(smiles: str, n_conf: int = 10, seed: int = 42) -> dic
     d = compute_entropy_v2_terms(mol, n_conf=n_conf, seed=seed)
     d["smiles"] = str(smiles).strip()
     return d
-
-
 def entropy_v2_cache_path(csv_path) -> Path:
     """<dir>/<stem>.entropy_v2.csv next to the dataset CSV."""
     p = Path(csv_path)
     return p.with_name(f"{p.stem}.entropy_v2.csv")
-
-
 def load_or_compute_entropy_v2(smiles: list[str], cache_path=None, n_conf: int = 10, seed: int = 42,
                                workers: int = 8) -> np.ndarray:
     """ENTROPY_V2_NAMES for each SMILES as a float32 array (n, 4), in the order of `smiles`.

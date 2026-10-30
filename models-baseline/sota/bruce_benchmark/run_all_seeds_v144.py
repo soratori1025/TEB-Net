@@ -11,13 +11,10 @@ import subprocess
 import sys
 import concurrent.futures
 from pathlib import Path
-
-PYTHON = "/home/nvsinh1/brats_segmentation/teb-net-model/.venv/bin/python3"
+PYTHON = sys.executable
 TRAIN_SCRIPT = str(Path(__file__).resolve().parent / "train_tebnet_v144.py")
 SEEDS = [42, 123, 2024, 8888, 9999]
 DEFAULT_GPUS = [0, 1]
-
-
 def run_seed(seed: int, gpu: int, args):
     """Train a single seed."""
     cmd = [
@@ -40,7 +37,6 @@ def run_seed(seed: int, gpu: int, args):
         print(f"[ERROR] Seed {seed} failed:\n{process.stdout[-2000:]}")
         return seed, False, process.stdout
     else:
-        # Print the summary block
         lines = process.stdout.strip().split("\n")
         summary_start = None
         for i, line in enumerate(lines):
@@ -52,8 +48,6 @@ def run_seed(seed: int, gpu: int, args):
         else:
             print(f"[OK] Seed {seed} finished successfully")
         return seed, True, process.stdout
-
-
 def main():
     parser = argparse.ArgumentParser(description="Run all seeds for Bruce benchmark")
     bruce_root = Path(__file__).resolve().parent
@@ -71,10 +65,8 @@ def main():
     parser.add_argument("--max_workers", type=int, default=None,
                         help="Max parallel workers (default: number of GPUs)")
     args = parser.parse_args()
-
     gpus = [int(g) for g in args.gpus.split(",")]
     max_workers = args.max_workers or len(gpus)
-
     print(f"{'='*60}")
     print(f" Bruce Benchmark — TEB-Net v14.2 Multi-Seed Training")
     print(f"{'='*60}")
@@ -84,7 +76,6 @@ def main():
     print(f"  Max epochs: {args.max_epochs}")
     print(f"  Patience: {args.patience}")
     print(f"{'='*60}\n")
-
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
@@ -92,12 +83,9 @@ def main():
             gpu = gpus[i % len(gpus)]
             future = executor.submit(run_seed, seed, gpu, args)
             futures.append(future)
-
         for future in concurrent.futures.as_completed(futures):
             seed, success, output = future.result()
             results[seed] = success
-
-    # Summary
     print(f"\n{'='*60}")
     print(f" Training Summary")
     print(f"{'='*60}")
@@ -110,7 +98,5 @@ def main():
     if n_ok == len(SEEDS):
         print(f"\n  All seeds done! Run evaluate.py to generate the report.")
     print(f"{'='*60}")
-
-
 if __name__ == "__main__":
     main()

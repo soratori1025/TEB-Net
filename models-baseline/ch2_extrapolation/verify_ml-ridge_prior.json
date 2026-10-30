@@ -1,0 +1,14 @@
+{
+  "tag": "ml-ridge_prior",
+  "run_dir": "models-baseline/benchmark_results_baselines/ml-ridge_prior/random0/member0_seed0",
+  "max_abs_diff_test_h_pred": 1.1823431123048067e-10,
+  "max_abs_diff_test_s_pred": 5.684341886080802e-14,
+  "max_abs_diff_test_cp_pred": 1.2789769243681803e-13,
+  "n_test": 501,
+  "max_abs_diff_val_h_pred": 1.7462298274040222e-10,
+  "max_abs_diff_val_s_pred": 5.684341886080802e-14,
+  "max_abs_diff_val_cp_pred": 1.1368683772161603e-13,
+  "n_val": 449,
+  "max_abs_diff_all": 1.7462298274040222e-10,
+  "reproduced": true
+}

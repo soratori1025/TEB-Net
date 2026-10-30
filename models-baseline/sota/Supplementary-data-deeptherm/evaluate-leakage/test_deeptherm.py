@@ -1,13 +1,9 @@
 import sys
 import traceback
 from pathlib import Path
-
-# Add DeepTherm to python path
 sys.path.insert(0, "/home/nvsinh1/brats_segmentation/teb-net-model/models_evaluate/sota/DeepTherm")
-
 from deeptherm.data import read_csv_dataset
 from deeptherm.training import TrainingConfig, train_ensemble
-
 try:
     print("Reading data...")
     frame, task_names = read_csv_dataset(
@@ -16,13 +12,11 @@ try:
         target_columns=None
     )
     print("Task names:", task_names)
-    
     config = TrainingConfig(
         epochs=1,
         batch_size=128,
         device="cuda"
     )
-    
     print("Starting train_ensemble...")
     results = train_ensemble(
         frame=frame,

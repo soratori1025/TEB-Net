@@ -1,6 +1,5 @@
 import urllib.request
 from bs4 import BeautifulSoup
-
 alkanes = {
     5: ("Pentane", "109-66-0"),
     6: ("Hexane", "110-54-3"),
@@ -15,13 +14,11 @@ alkanes = {
     15: ("Pentadecane", "629-62-9"),
     16: ("Hexadecane", "544-76-3"),
 }
-
 for n, (name, cas) in alkanes.items():
     url = f"https://webbook.nist.gov/cgi/cbook.cgi?ID=C{cas.replace('-', '')}&Units=SI&Mask=1"
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     html = urllib.request.urlopen(req).read()
     soup = BeautifulSoup(html, 'html.parser')
-    
     val = None
     ref = None
     for tr in soup.find_all('tr'):
@@ -29,7 +26,6 @@ for n, (name, cas) in alkanes.items():
         if len(tds) > 1 and "S°gas" in tds[0].get_text():
             try:
                 text = tds[1].get_text()
-                # Extract the first float
                 v = float(text.replace('±', '').split()[0])
                 val = v / 4.184
                 if len(tds) > 4:
@@ -41,4 +37,3 @@ for n, (name, cas) in alkanes.items():
         print(f"| {n} | {name} | {val:.2f} cal/mol*K | Ref: {ref} |")
     else:
         print(f"| {n} | {name} | N/A |")
-

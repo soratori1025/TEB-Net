@@ -2,7 +2,6 @@ from __future__ import annotations
 import torch
 from torch import Tensor, nn
 import torch.nn.functional as F
-
 class NASA7ThermoLoss(nn.Module):
     def __init__(
         self,
@@ -21,8 +20,6 @@ class NASA7ThermoLoss(nn.Module):
         super().__init__()
         self.loss_type = loss_type
         self.weight_strategy = weight_strategy
-        # v3: Huber transition point per property, in the SCALED units (target / *_scale). The default 1.0
-        # reproduces v1; with a global-std scale (~40 kcal/mol for ΔfH) beta = 1 makes the loss pure MSE.
         self.betas = {"cp": float(huber_beta_cp), "h": float(huber_beta_h), "s": float(huber_beta_s)}
         self.register_buffer("cp_scale", torch.tensor(float(cp_scale)))
         self.register_buffer("h_scale", torch.tensor(float(h_scale)))
@@ -35,7 +32,6 @@ class NASA7ThermoLoss(nn.Module):
             self.register_buffer("w_cp", torch.tensor(float(w_cp)))
             self.register_buffer("w_h298", torch.tensor(float(w_h298)))
             self.register_buffer("w_s298", torch.tensor(float(w_s298)))
-
     def _elementwise(self, pred: Tensor, target: Tensor, beta: float = 1.0) -> Tensor:
         if self.loss_type == "mae":
             return (pred - target).abs()
@@ -44,7 +40,6 @@ class NASA7ThermoLoss(nn.Module):
         if self.loss_type == "huber":
             return F.smooth_l1_loss(pred, target, reduction="none", beta=beta)
         raise ValueError(f"Unknown loss type: {self.loss_type}")
-
     def _weighted_mean(
         self,
         pred: Tensor,
@@ -66,7 +61,6 @@ class NASA7ThermoLoss(nn.Module):
         if err.numel() == 0:
             return torch.zeros((), device=pred.device, dtype=pred.dtype, requires_grad=True)
         return (w * err).sum() / w.sum().clamp(min=1e-8)
-
     def forward(
         self,
         pred_cp: Tensor,
@@ -80,7 +74,6 @@ class NASA7ThermoLoss(nn.Module):
         cp_mask = target_cp.isfinite()
         h_mask = target_dh_f.isfinite()
         s_mask = target_s298.isfinite()
-        # Normalize by std to put all properties on comparable scale
         l_cp = self._weighted_mean(
             pred_cp / self.cp_scale, target_cp / self.cp_scale, cp_mask, sample_weights, self.betas["cp"]
         )
@@ -107,8 +100,6 @@ class NASA7ThermoLoss(nn.Module):
             "h298": l_h298.detach(),
             "s298": l_s298.detach(),
         }
-
-
 class HomologConsistencyLoss(nn.Module):
     """CH2-homolog increment regulariser (the physics-informed part of the objective).
 
@@ -149,26 +140,20 @@ class HomologConsistencyLoss(nn.Module):
         "quadratic while the model is within one measured scatter", which is the regime
         the prior is meant to police.
     """
-
     PROPERTIES = ("h", "s", "cp")
-
     def __init__(self, w_h: float = 1.0, w_s: float = 1.0, w_cp: float = 1.0,
                  cp_index: int = 0, beta: float = 1.0):
         super().__init__()
-        # non-persistent: the property weights are hyperparameters, and keeping them out of
-        # the state_dict means checkpoints written before this term existed still load.
         self.register_buffer("w", torch.tensor([float(w_h), float(w_s), float(w_cp)]),
                              persistent=False)
         self.cp_index = int(cp_index)
         self.beta = float(beta)
-
     @staticmethod
     def _pseudo_huber(r: Tensor, beta: float) -> Tensor:
         """``2 b^2 (sqrt(1 + (r/b)^2) - 1)``, written to avoid the catastrophic cancellation
         of ``sqrt(1 + a^2) - 1`` for small ``a``."""
         a2 = (r / beta) ** 2
         return 2.0 * beta * beta * a2 / ((1.0 + a2).sqrt() + 1.0)
-
     def forward(
         self,
         pred_anchor: dict[str, Tensor],
@@ -198,26 +183,17 @@ class HomologConsistencyLoss(nn.Module):
         tol = tolerances.to(d.dtype).clamp_min(1e-8)
         resid = d - inc
         r = resid / tol
-        pen = self._pseudo_huber(r, self.beta)              # (B, 3)
-        # A pair is valid only when its increment, tolerance and prediction are all finite.
-        # Masking has to go through torch.where, not multiplication: NaN * 0 is NaN, so a
-        # single missing target would otherwise poison the sum and every gradient.
+        pen = self._pseudo_huber(r, self.beta)
         valid = torch.isfinite(pen) & torch.isfinite(resid) & torch.isfinite(tol)
         zero = torch.zeros((), dtype=pen.dtype, device=pen.device)
         pen_m = torch.where(valid, pen, zero)
         resid_m = torch.where(valid, resid.abs(), zero)
         r_m = torch.where(valid, r.abs(), zero)
-        n = valid.sum(0)                                    # per property
+        n = valid.sum(0)
         denom = n.to(pen.dtype).clamp(min=1.0)
-        per_prop = pen_m.sum(0) / denom                     # (3,): mean penalty per property
-        # Combine with the (3,) property weights.  ``self.w`` must NOT be expanded to (B, 3)
-        # here: ``per_prop`` is already a mean over the batch, so broadcasting a (B, 3) weight
-        # against it would produce a (B, 3) tensor whose ``sum()`` counts every property B
-        # times -- making the penalty (and its gradient) scale linearly with the batch size.
+        per_prop = pen_m.sum(0) / denom
         total = (self.w.to(pen.dtype) * per_prop).sum()
         if not bool(valid.any()):
-            # Keep the graph (and the optimiser) intact on a degenerate batch: the term is
-            # zero, but it still has to be a differentiable zero, not a detached constant.
             total = torch.nan_to_num(d).sum() * 0.0
         out = {"total": total}
         for k, key in enumerate(self.PROPERTIES):

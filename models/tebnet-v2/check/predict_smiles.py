@@ -18,23 +18,18 @@ Usage
       --out homologous_predictions.csv
 """
 from __future__ import annotations
-
 import argparse
 import json
 import sys
 import tempfile
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
-
 J_TO_KCAL = 1.0 / 4184.0
 J_TO_CAL = 1.0 / 4.184
 DT_COLS = ["Hf_298.15K_kcal/mol", "S_298.15K_cal/(molK)", "cp_300K_cal/(molK)", "cp_400K_cal/(molK)",
            "cp_500K_cal/(molK)", "cp_600K_cal/(molK)", "cp_800K_cal/(molK)", "cp_1000K_cal/(molK)",
            "cp_1500K_cal/(molK)"]
-
-
 def setup_paths():
     here = Path(__file__).resolve().parent
     for p in (here, here.parent / "scripts"):
@@ -42,19 +37,16 @@ def setup_paths():
             sys.path.insert(0, str(p))
             return
     raise SystemExit("train.py not found next to this script or in ../scripts")
-
-
 def predict(run_dirs, smiles, batch_size=64):
     """Weighted ensemble over run_dirs (weights 1/validation MAE, as deeptherm_eval.py). Returns dict of arrays
     indexed like `smiles` (NaN where RDKit or the featurizer rejected a SMILES) and the per-run weights."""
     setup_paths()
     import torch
     from torch.utils.data import DataLoader
-    from train import make_atom_featurizer, morgan_bits            # also sets the project paths
+    from train import make_atom_featurizer, morgan_bits
     from tebnet.data.dataset import ThermochemDataset
     from tebnet.data.collate import ThermoCollater
     from tebnet.models.tebnet import TEBNetV20
-
     cache, preds, vals = {}, [], []
     for rd in run_dirs:
         rd = Path(rd)
@@ -68,7 +60,7 @@ def predict(run_dirs, smiles, batch_size=64):
                 csv = Path(tmp) / "query.csv"
                 df = pd.DataFrame({"SMILES": smiles})
                 for c in DT_COLS:
-                    df[c] = 1.0                                   # dummy targets; only the inputs are used
+                    df[c] = 1.0
                 df.to_csv(csv, index=False)
                 full = ThermochemDataset.from_csv(csv, T_grid=t_grid, smiles_col="SMILES", physics_cache=None,
                                                   h_unit="kcal", s_unit="cal", cp_unit="cal",
@@ -107,14 +99,10 @@ def predict(run_dirs, smiles, batch_size=64):
                      "scp": (v["S298_cal"]["mae"] + len(t_grid) * v["Cp_mean_MAE_cal"]) / (1 + len(t_grid))})
         print(f"  {rd}: {len(out['smiles'])}/{len(smiles)} molecules")
     return preds, vals, t_grid
-
-
 def weighted(preds, vals, key, wkey):
     w = 1.0 / np.array([v[wkey] for v in vals])
     w = w / w.sum()
     return np.tensordot(w, np.stack([p[key] for p in preds]), axes=(0, 0))
-
-
 def series_report(df, prop="H", unit="kcal/mol"):
     """Per series: increment per CH2 and errors beyond the DeepTherm set, for prop in H, S, Cp300."""
     suf = "kcal" if prop == "H" else "cal"
@@ -136,19 +124,16 @@ def series_report(df, prop="H", unit="kcal/mol"):
         line = slope * out.n_carbon + icpt
         out[f"line_{prop}_{suf}"] = line
         lines.append(out[["series", "n_carbon", f"line_{prop}_{suf}"]])
-
         def inc(col):
             if col not in out:
                 return np.nan
             o = out[out[col].notna()]
             return np.polyfit(o.n_carbon, o[col], 1)[0] if len(o) >= 2 else np.nan
-
         def mae(col, r):
             if col not in out:
                 return np.nan
             m = out[col].notna() & r.notna()
             return np.abs(out.loc[m, col] - r[m]).mean() if m.any() else np.nan
-
         r = out[ref] if ref in out else pd.Series(np.nan, index=out.index)
         n_ref = int(r.notna().sum())
         print(f"| {name} | {out.n_carbon.min()}–{out.n_carbon.max()} | {slope:+.2f} | {inc(teb):+.2f} | "
@@ -158,8 +143,6 @@ def series_report(df, prop="H", unit="kcal/mol"):
         print("\nIncrement = slope against n over the members outside the DeepTherm set; line = straight line fitted "
               "to the members inside the set (n >= 3) and extrapolated.")
     return pd.concat(lines) if lines else None
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--smiles_csv", required=True)
@@ -167,7 +150,6 @@ def main():
     ap.add_argument("--scp_runs", nargs="+", default=None)
     ap.add_argument("--out", default="homologous_predictions.csv")
     args = ap.parse_args()
-
     df = pd.read_csv(args.smiles_csv)
     smiles = df.smiles.astype(str).tolist()
     print("ΔH models:")
@@ -190,7 +172,5 @@ def main():
                 df = df.merge(lines, on=["series", "n_carbon"], how="left")
     df.to_csv(args.out, index=False, float_format="%.3f")
     print(f"\nwrote {args.out}")
-
-
 if __name__ == "__main__":
     main()

@@ -1,0 +1,14 @@
+{
+  "tag": "gnn-attentivefp_all_L4_d300_attn",
+  "run_dir": "models-baseline/benchmark_results_baselines/gnn-attentivefp_all_L4_d300_attn/random0/member0_seed0",
+  "max_abs_diff_test_h_pred": 0.10713453101925552,
+  "max_abs_diff_test_s_pred": 3.143084700241161e-05,
+  "max_abs_diff_test_cp_pred": 8.430774789758289e-05,
+  "n_test": 501,
+  "max_abs_diff_val_h_pred": 0.10713453101925552,
+  "max_abs_diff_val_s_pred": 6.286169411851006e-05,
+  "max_abs_diff_val_cp_pred": 0.00011241033064379735,
+  "n_val": 449,
+  "max_abs_diff_all": 0.10713453101925552,
+  "reproduced": true
+}

@@ -15,15 +15,11 @@ Usage
   (--ref = published ΔH [kJ/mol], S298 and Cp300 [J/(mol·K)] MAEs to compare with; optional)
 """
 from __future__ import annotations
-
 import argparse
 import json
 from collections import defaultdict
 from pathlib import Path
-
 import numpy as np
-
-
 def load_tag(run_dir: Path):
     files = sorted(run_dir.glob("outer*.npz"))
     if not files:
@@ -40,27 +36,20 @@ def load_tag(run_dir: Path):
     if len(files) != meta["n_outer"]:
         print(f"  WARNING: {run_dir.name}: only {len(files)}/{meta['n_outer']} outer folds present")
     return p, idx[order], meta
-
-
 def errors(p: dict, t_grid: np.ndarray) -> dict[str, np.ndarray]:
     j300 = int(np.argmin(np.abs(t_grid - 300.0)))
     return {"ΔH298 [kJ/mol]": (p["h_pred"] - p["h_true"]) / 1000.0,
             "S298 [J/(mol K)]": p["s_pred"] - p["s_true"],
             "Cp300 [J/(mol K)]": p["cp_pred"][:, j300] - p["cp_true"][:, j300]}
-
-
 def boot_mae(err: np.ndarray, n_boot: int, rng: np.random.Generator) -> np.ndarray:
     a = np.abs(err[np.isfinite(err)])
     return a[rng.integers(0, len(a), size=(n_boot, len(a)))].mean(1)
-
-
 def duplicates(smiles: np.ndarray, fold: np.ndarray, h_true: np.ndarray) -> np.ndarray:
     """Prints duplicate groups; returns a boolean mask of rows in groups that span several outer folds
     (one copy trained on while the other is tested). The ΔH spread inside a group tells exact duplicates
     (spread ~0) from distinct species that share an InChIKey (e.g. E/Z isomers of a vinyl radical)."""
     try:
         from rdkit import Chem
-
         def key(s):
             m = Chem.MolFromSmiles(str(s))
             if m is None:
@@ -88,8 +77,6 @@ def duplicates(smiles: np.ndarray, fold: np.ndarray, h_true: np.ndarray) -> np.n
     for g in cross:
         mask[g] = True
     return mask
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run_dir", required=True, help="benchmark_results_cv/<dataset stem>")
@@ -102,7 +89,6 @@ def main():
     ap.add_argument("--drop_dups", action="store_true",
                     help="also report the metrics without molecules whose duplicate is in another outer fold")
     args = ap.parse_args()
-
     root = Path(args.run_dir)
     p, idx, meta = load_tag(root / args.tags[0])
     if len(args.tags) == 2:
@@ -113,10 +99,8 @@ def main():
             p[k] = ps[k]
     t_grid = np.asarray(meta["t_grid"])
     rng = np.random.default_rng(args.seed)
-
     print(f"\n{root.name} | {' + '.join(args.tags)} | n = {len(idx)}")
     dup_mask = duplicates(p["smiles"], p["fold"], p["h_true"])
-
     def table(keep: np.ndarray, title: str) -> None:
         print(f"\n  {title} (n = {int(keep.sum())})")
         if keep.sum() < 2:
@@ -135,13 +119,9 @@ def main():
             if ref is not None:
                 line += f" {ref:>6.2f} {('yes' if lo <= ref <= hi else 'no'):>9s} {np.mean(b < ref):>10.2f}"
             print(line)
-
     table(np.ones(len(idx), dtype=bool), "all molecules")
     if args.drop_dups and dup_mask.any():
-        # sensitivity check: score only molecules with no copy in another outer fold (no retraining needed;
-        # a duplicate can only help the prediction of its own copy)
         table(~dup_mask, "without molecules whose duplicate sits in another outer fold")
-
     if args.worst:
         e = np.abs(errors(p, t_grid)["ΔH298 [kJ/mol]"])
         order = np.argsort(-np.where(np.isfinite(e), e, -1))[: args.worst]
@@ -150,7 +130,5 @@ def main():
         for i in order:
             print(f"  {str(p['smiles'][i])[:40]:<40s} {p['h_true'][i] / 1000:>9.2f} {p['h_pred'][i] / 1000:>9.2f} "
                   f"{e[i]:>7.2f} {int(p['fold'][i]):>4d}")
-
-
 if __name__ == "__main__":
     main()

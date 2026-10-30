@@ -19,16 +19,12 @@ SAME feature version as the original runs (column 'feat').
   python scripts/run_info.py --runs benchmark_results_v153 --tag mon-scp --rerun rerun_early.sh
 """
 from __future__ import annotations
-
 import argparse
 import json
 import shlex
 from collections import defaultdict
 from pathlib import Path
-
 import numpy as np
-
-
 def ckpt_best_epoch(path: Path) -> int | None:
     if not path.exists():
         return None
@@ -37,19 +33,15 @@ def ckpt_best_epoch(path: Path) -> int | None:
         return int(torch.load(path, map_location="cpu", weights_only=False)["epoch"]) + 1
     except Exception:
         return None
-
-
 def feature_version(r: dict) -> str:
     if r.get("features_version"):
         return str(r["features_version"])
     coefs = r.get("baseline_coefficients", {}) or {}
     if "H:rad_ethynyl" in coefs:
-        return "v15.3*"      # inferred from the radical types in the baseline report
+        return "v15.3*"
     if "H:rad_vinyl" in coefs:
         return "v15.2*"
     return "?"
-
-
 def monitored_train(r: dict) -> float:
     """Train MAE of the quantity used for model selection (same definition as the val monitor)."""
     tr = r["train"]
@@ -57,8 +49,6 @@ def monitored_train(r: dict) -> float:
     mon = (r.get("args") or {}).get("monitor", "deeptherm")
     return {"h": h, "s": s, "scp": (s + 7.0 * cpm) / 8.0,
             "cp300": tr.get("Cp300_cal", {}).get("mae", cpm)}.get(mon, tr["mean9_MAE"])
-
-
 def rerun_cmd(a: dict) -> str:
     parts = ["python", "scripts/train.py"]
     for k, v in a.items():
@@ -72,12 +62,8 @@ def rerun_cmd(a: dict) -> str:
             parts += [f"--{k}", str(v)]
     parts.append("--overwrite")
     return " ".join(shlex.quote(p) for p in parts)
-
-
 def fmt(x, w=6, d=3):
     return f"{x:>{w}.{d}f}" if isinstance(x, (int, float)) and x is not None and np.isfinite(x) else f"{'-':>{w}s}"
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", required=True, help="output directory of train.py (e.g. benchmark_results_v153)")
@@ -86,7 +72,6 @@ def main():
     ap.add_argument("--underfit_ratio", type=float, default=1.5,
                     help="flag a run whose monitored train MAE exceeds this × the median of its tag")
     args = ap.parse_args()
-
     groups: dict[str, list] = defaultdict(list)
     for f in sorted(Path(args.runs).rglob("results.json")):
         try:
@@ -97,7 +82,6 @@ def main():
         tag = r.get("tag", f.parents[2].name)
         if args.tag in tag:
             groups[tag].append((f, r))
-
     reruns, skipped = [], []
     for tag, runs in sorted(groups.items()):
         med = float(np.median([monitored_train(r) for _, r in runs]))
@@ -140,7 +124,6 @@ def main():
                     skipped.append(f"{tag}/{split}: patience was set explicitly (tag has _pat) — not re-run")
                 else:
                     reruns.append((feature_version(r), f"{tag}/{split}", rerun_cmd(a)))
-
     print("\nS-baseline coefficients (units of R) are NOT physical constants: log_sigma is collinear with n_methyl "
           "(each CH3 rotor adds ln 3),\n  n_rotors and the ring / aromatic counts, and ln_mult is the only radical "
           "term in the S baseline (no n_rad_e), so it\n  absorbs the whole radical-vs-closed-shell entropy difference. "
@@ -161,7 +144,5 @@ def main():
         print("\nno early-stopped runs")
     for s in skipped:
         print("  " + s)
-
-
 if __name__ == "__main__":
     main()

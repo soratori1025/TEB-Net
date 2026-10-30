@@ -35,7 +35,6 @@ Units: Ureel's CSVs are in kJ/mol and J/(mol·K), so --h_unit kj --s_unit j --cp
 mapping printed at start-up; pass --h_col / --s_col / --cp_cols if a column is not found.
 """
 from __future__ import annotations
-
 import argparse
 import json
 import logging
@@ -44,61 +43,42 @@ import shutil
 import sys
 import time
 from pathlib import Path
-
 import numpy as np
 import torch
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader, Subset
-
 ROOT = Path(__file__).resolve().parent.parent.parent
-# v3: import train.py (and through it the tebnet package) from THIS project; v1 hard-coded tebnet-v1 here
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-# train.py sets up the project paths and holds the helpers shared with the DeepTherm protocol
-from train import (  # noqa: E402
+from train import (
     make_atom_featurizer, DeepThermValMAE, collect_predictions, COL, DEEPTHERM_T_GRID,
 )
-from tebnet.data.dataset import ThermochemDataset  # noqa: E402
-from tebnet.data.collate import ThermoCollater  # noqa: E402
-from tebnet.data.baselines import fit_scalar_baseline, fit_cp_cheb_baseline, cp_from_cheb  # noqa: E402
-from tebnet.models.tebnet import TEBNetV20  # noqa: E402
-from tebnet.data.featurizer import (  # noqa: E402
+from tebnet.data.dataset import ThermochemDataset
+from tebnet.data.collate import ThermoCollater
+from tebnet.data.baselines import fit_scalar_baseline, fit_cp_cheb_baseline, cp_from_cheb
+from tebnet.models.tebnet import TEBNetV20
+from tebnet.data.featurizer import (
     CleanBondFeaturizer, V15_NAMES, FEATURES_VERSION, v15_route_names, v15_base_names, S_PRIOR_VARIANTS,
 )
-
 logger = logging.getLogger("tebnet_cv")
-
 J_TO_KCAL = 1.0 / 4184.0
 J_TO_CAL = 1.0 / 4.184
-# network weights transferred by --init_ckpt; baselines, normalisation and loss scales are refitted
 TRANSFER_PREFIXES = ("message_passing.", "bn.", "h_branch.", "s_branch.", "cp_branch.")
-
-
-# ───────────────────────────── folds ─────────────────────────────
 def outer_folds(n: int, k_out: int, seed: int) -> list[np.ndarray]:
     perm = np.random.default_rng(seed).permutation(n)
     return [np.sort(f) for f in np.array_split(perm, k_out)]
-
-
 def inner_folds(pool: np.ndarray, k_in: int, seed: int, outer_k: int) -> list[np.ndarray]:
     rng = np.random.default_rng(1000 * (seed + 1) + outer_k)
     perm = pool[rng.permutation(len(pool))]
     return [np.sort(f) for f in np.array_split(perm, k_in)]
-
-
-# ───────────────────────────── data helpers ─────────────────────────────
 def arrays(dps, idx):
     X = np.stack([dps[i].x_physic for i in idx]).astype(np.float64)
     H = np.array([dps[i].dh_f_298 for i in idx], dtype=np.float64)
     S = np.array([dps[i].s_298 for i in idx], dtype=np.float64)
     CP = np.stack([dps[i].cp_grid for i in idx]).astype(np.float64)
     return X, H, S, CP
-
-
 def _feature_names(args) -> list[str]:
     """v15 names, plus the v3 group / ring-correction columns when --prior_groups is on."""
     return list(getattr(args, "feature_names", None) or V15_NAMES)
-
-
 def fit_priors(args, X, H, S, CP, t_grid, t_mid, t_low_dom, use_3d):
     base = {k: v15_base_names(k, "composition" if args.baseline == "none" else args.baseline, use_3d)
             for k in ("h", "cp")}
@@ -112,9 +92,6 @@ def fit_priors(args, X, H, S, CP, t_grid, t_mid, t_low_dom, use_3d):
     cols = {k: [col[n] for n in v] for k, v in base.items()}
     Xb = np.zeros_like(X) if args.baseline == "none" else X.copy()
     if extra and args.baseline == "physics":
-        # v3: a group seen in fewer than `group_min_count` training molecules gets no coefficient (its column is
-        # made constant, so fit_ridge gives it weight 0); rare groups would otherwise be fitted to a handful of
-        # training molecules and push their error into the test set
         mc = int(getattr(args, "group_min_count", 0) or 0)
         ex = [col[n] for n in extra]
         rare = [j for j in ex if (Xb[:, j] != 0).sum() < mc]
@@ -132,16 +109,12 @@ def fit_priors(args, X, H, S, CP, t_grid, t_mid, t_low_dom, use_3d):
     bc = fit_cp_cheb_baseline(Xb[:, cols["cp"]], CP, t_grid, t_mid, t_low_dom, args.t_high_dom,
                               lam_rel=args.ridge_lambda)
     return base, cols, bh, bs, bc
-
-
 def prior_predict(X, cols, bh, bs, bc, t_grid, t_mid, t_low_dom, t_high_dom):
     h = X[:, cols["h"]] @ bh["w"] + bh["b"]
     s = X[:, cols["s"]] @ bs["w"] + bs["b"]
     C = X[:, cols["cp"]] @ bc["W"] + bc["b"]
     cp = cp_from_cheb(C, t_grid, t_mid, t_low_dom, t_high_dom)
     return h, s, cp
-
-
 def load_transfer_weights(model: TEBNetV20, ckpt: str) -> None:
     sd = torch.load(ckpt, map_location="cpu", weights_only=False)["state_dict"]
     own = model.state_dict()
@@ -161,27 +134,21 @@ def load_transfer_weights(model: TEBNetV20, ckpt: str) -> None:
                          f"as the pretraining run")
     model.load_state_dict(take, strict=False)
     logger.info(f"transferred {len(take)} tensors from {ckpt}")
-
-
-# ───────────────────────────── one inner model ─────────────────────────────
 def _beta(delta, to_si: float, scale: float) -> float:
     """Huber transition point in loss units (target / scale); None -> 1.0 (= v1)."""
     return 1.0 if delta is None else float(delta) * to_si / float(scale)
-
 def train_inner(args, full_ds, tr, va, seed, save_dir, t_grid, t_mid, t_low_dom, use_3d, collater, d_v, device):
     pl.seed_everything(seed, workers=True)
     dps = full_ds.datapoints
     X, H, S, CP = arrays(dps, tr)
     base, cols, bh, bs, bc = fit_priors(args, X, H, S, CP, t_grid, t_mid, t_low_dom, use_3d)
     route = {k: v15_route_names(k, args.route_mode, use_3d) for k in ("h", "s", "cp")}
-
     mu, sd = X.mean(0), X.std(0)
     sd[sd < 1e-3] = 1.0
     if args.loss_norm == "residual":
         ls_h, ls_s, ls_cp = bh["resid_std"], bs["resid_std"], bc["cp_resid_std"]
     else:
         ls_h, ls_s, ls_cp = bh["target_std"], bs["target_std"], bc["cp_target_std"]
-
     model = TEBNetV20(
         feature_names=_feature_names(args),
         route_h=route["h"], route_s=route["s"], route_cp=route["cp"],
@@ -194,7 +161,6 @@ def train_inner(args, full_ds, tr, va, seed, save_dir, t_grid, t_mid, t_low_dom,
         loss_weights={"h298": args.loss_weights[0], "s298": args.loss_weights[1], "cp": args.loss_weights[2]},
         weight_strategy="fixed",
         loss_scale_cp=ls_cp, loss_scale_h=ls_h, loss_scale_s=ls_s,
-        # v3: Huber transition points given in physical units (kcal/mol, cal/(mol K)) -> scaled units
         huber_beta_h=_beta(getattr(args, "huber_delta_h", None), 4184.0, ls_h),
         huber_beta_s=_beta(getattr(args, "huber_delta_s", None), 4.184, ls_s),
         huber_beta_cp=_beta(getattr(args, "huber_delta_cp", None), 4.184, ls_cp),
@@ -205,11 +171,9 @@ def train_inner(args, full_ds, tr, va, seed, save_dir, t_grid, t_mid, t_low_dom,
         load_transfer_weights(model, args.init_ckpt)
     model.set_baselines(bh, bs, bc)
     model.set_aux_norm(mu, sd)
-
     dl = dict(batch_size=args.batch_size, collate_fn=collater, num_workers=args.num_workers)
     train_loader = DataLoader(Subset(full_ds, tr), shuffle=True, drop_last=len(tr) > args.batch_size, **dl)
     val_loader = DataLoader(Subset(full_ds, va), shuffle=False, **dl)
-
     monitor = {"deeptherm": "val/deeptherm_mae", "h": "val/mae_H_kcal", "s": "val/mae_S_cal",
                "cp300": "val/mae_Cp300_cal", "scp": "val/mae_SCp"}[args.monitor]
     ckpt_cb = pl.callbacks.ModelCheckpoint(dirpath=save_dir, filename="best", monitor=monitor, mode="min",
@@ -225,16 +189,11 @@ def train_inner(args, full_ds, tr, va, seed, save_dir, t_grid, t_mid, t_low_dom,
     if ckpt_cb.best_model_path and Path(ckpt_cb.best_model_path).exists():
         model = TEBNetV20.load_from_checkpoint(ckpt_cb.best_model_path)
     return model.to(device), best_val, bh, bs, bc
-
-
-# ───────────────────────────── metrics ─────────────────────────────
 def _mae_rmse(pred, true):
     m = np.isfinite(pred) & np.isfinite(true)
     e = pred[m] - true[m]
     return (float(np.abs(e).mean()), float(np.sqrt(np.square(e).mean())), int(m.sum())) if m.any() \
         else (float("nan"), float("nan"), 0)
-
-
 def report(p: dict, t_grid: np.ndarray, title: str) -> dict:
     """p in SI units (J/mol, J/(mol·K)). Prints Ureel units (kJ/mol, J/(mol·K)) and DeepTherm units."""
     out = {"H_kJ": _mae_rmse(p["h_pred"] / 1000.0, p["h_true"] / 1000.0),
@@ -253,8 +212,6 @@ def report(p: dict, t_grid: np.ndarray, title: str) -> dict:
           f"Cp300 {c[0] * J_TO_CAL:.3f} | Cp mean {out['Cp_mean_MAE_J'] * J_TO_CAL:.3f} cal/(mol K)")
     print("  per-T Cp MAE [J/(mol K)]: " + "  ".join(f"{T:.0f}K {out[f'Cp{T:.0f}_J'][0]:.2f}" for T in t_grid))
     return out
-
-
 def load_tag(run_dir: Path):
     files = sorted(run_dir.glob("outer*.npz"))
     if not files:
@@ -266,8 +223,6 @@ def load_tag(run_dir: Path):
          for k in ("h_pred", "s_pred", "cp_pred", "h_true", "s_true", "cp_true")}
     meta = json.loads(str(parts[0]["meta"]))
     return p, idx[order], meta, len(files)
-
-
 def summarize(args, root: Path) -> None:
     tags = sorted(d for d in root.iterdir() if d.is_dir()) if root.exists() else []
     if not tags:
@@ -294,13 +249,10 @@ def summarize(args, root: Path) -> None:
         p["h_pred"] = ph["h_pred"]
         print("\n" + "#" * 92 + f"\n DECOUPLED  ΔH <- {th}\n            S, Cp <- {ts}\n" + "#" * 92)
         report(p, np.asarray(ms["t_grid"]), "decoupled TEB-Net (nested CV, inner ensembles)")
-
-
 def write_filtered_pretrain(target_csv: str, src_csv: str, out_csv: str, smiles_col: str) -> None:
     """Copies src_csv without the molecules of target_csv (matched by InChIKey, else canonical SMILES)."""
     import pandas as pd
     from rdkit import Chem
-
     def key(smi):
         m = Chem.MolFromSmiles(str(smi).strip())
         if m is None:
@@ -312,7 +264,6 @@ def write_filtered_pretrain(target_csv: str, src_csv: str, out_csv: str, smiles_
         except Exception:
             pass
         return Chem.MolToSmiles(m)
-
     tgt = pd.read_csv(target_csv)
     src = pd.read_csv(src_csv)
     t_keys = {key(s) for s in tgt[smiles_col]} - {None}
@@ -322,9 +273,6 @@ def write_filtered_pretrain(target_csv: str, src_csv: str, out_csv: str, smiles_
     print(f"{src_csv}: {len(src)} rows, {int(drop.sum())} shared with {target_csv} removed -> {out_csv} "
           f"({int((~drop).sum())} rows). Pretrain on it with scripts/train.py (row order now differs from the "
           f"DeepTherm SI, which is expected).")
-
-
-# ───────────────────────────── main ─────────────────────────────
 def main():
     ap = argparse.ArgumentParser(description="TEB-Net, nested CV protocol of Ureel et al. (2023)")
     ap.add_argument("--csv", required=True)
@@ -338,7 +286,6 @@ def main():
     ap.add_argument("--physics_cache", default="auto")
     ap.add_argument("--out_dir", default="benchmark_results_cv")
     ap.add_argument("--tag_suffix", default="")
-    # protocol
     ap.add_argument("--n_outer", type=int, default=10)
     ap.add_argument("--n_inner", type=int, default=9)
     ap.add_argument("--outer_folds", type=int, nargs="*", default=None, help="subset of outer folds to run")
@@ -346,13 +293,11 @@ def main():
     ap.add_argument("--seed", type=int, default=0, help="model initialisation")
     ap.add_argument("--ensemble", choices=["mean", "inv_val"], default="mean",
                     help="mean = Ureel et al.; inv_val = weights 1/val-MAE as DeepTherm")
-    # arms
     ap.add_argument("--prior_only", action="store_true", help="frozen ridge prior alone, no network")
     ap.add_argument("--init_ckpt", default=None, help="fine-tune from this TEB-Net checkpoint (e.g. trained on DeepTherm)")
     ap.add_argument("--write_filtered_pretrain", nargs=2, metavar=("SRC_CSV", "OUT_CSV"), default=None)
     ap.add_argument("--summarize", action="store_true")
     ap.add_argument("--combine", nargs=2, metavar=("H_TAG", "SCP_TAG"), default=None)
-    # model / training (defaults = scripts/train.py, so a DeepTherm checkpoint can be fine-tuned)
     ap.add_argument("--loss_weights", type=float, nargs=3, default=[2.0, 1.5, 1.0], metavar=("H", "S", "CP"))
     ap.add_argument("--monitor", choices=["deeptherm", "h", "s", "cp300", "scp"], default="deeptherm")
     ap.add_argument("--atom_featurizer", choices=["chemprop", "radical", "thermo"], default="thermo")
@@ -382,17 +327,14 @@ def main():
     ap.add_argument("--keep_ckpt", action="store_true")
     ap.add_argument("--overwrite", action="store_true")
     args = ap.parse_args()
-
     if args.write_filtered_pretrain:
         write_filtered_pretrain(args.csv, *args.write_filtered_pretrain, smiles_col=args.smiles_col)
         return
-
     ds_name = Path(args.csv).stem
     root = Path(args.out_dir) / ds_name
     if args.summarize:
         summarize(args, root)
         return
-
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", str(args.gpu))
     torch.set_float32_matmul_precision("high")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -400,7 +342,6 @@ def main():
     t_grid = DEEPTHERM_T_GRID
     t_mid = args.t_mid
     t_low_dom = float(t_grid[t_grid <= t_mid].min())
-
     mode = "prior" if args.prior_only else ("finetune" if args.init_ckpt else "scratch")
     tag = mode
     if mode != "prior":
@@ -410,7 +351,6 @@ def main():
     tag += f"_{args.baseline}" + ("" if use_3d else "_2d") + f"_cv{args.cv_seed}_s{args.seed}" + args.tag_suffix
     run_dir = root / tag
     run_dir.mkdir(parents=True, exist_ok=True)
-
     full_ds = ThermochemDataset.from_csv(
         args.csv, T_grid=t_grid, smiles_col=args.smiles_col, physics_cache=args.physics_cache,
         h_col=args.h_col, s_col=args.s_col,
@@ -433,12 +373,10 @@ def main():
                 f"run dir {run_dir}")
     if use_3d and max(dp.x_physic[COL["moi_valid"]] for dp in dps) < 0.5:
         logger.warning("use_3d=True but no valid 3-D features")
-
     atom_feat = make_atom_featurizer(args.atom_featurizer)
     collater = ThermoCollater(atom_featurizer=atom_feat)
     d_v = len(atom_feat) if atom_feat is not None else None
     todo = args.outer_folds if args.outer_folds else list(range(args.n_outer))
-
     for k in todo:
         out_file = run_dir / f"outer{k}.npz"
         if out_file.exists() and not args.overwrite:
@@ -448,7 +386,6 @@ def main():
         pool = np.sort(np.concatenate([f for j, f in enumerate(folds) if j != k]))
         _, Ht, St, CPt = arrays(dps, te)
         t0 = time.time()
-
         if args.prior_only:
             X, H, S, CP = arrays(dps, pool)
             _, cols, bh, bs, bc = fit_priors(args, X, H, S, CP, t_grid, t_mid, t_low_dom, use_3d)
@@ -480,7 +417,6 @@ def main():
                 torch.cuda.empty_cache()
             members = {key: np.stack(v) for key, v in members.items()}
             vals = np.asarray(vals, dtype=float)
-
         if args.ensemble == "inv_val" and np.isfinite(vals).all():
             w = 1.0 / np.maximum(vals, 1e-12)
             w /= w.sum()
@@ -497,13 +433,10 @@ def main():
         report({"h_pred": ens["h"], "s_pred": ens["s"], "cp_pred": ens["cp"],
                 "h_true": Ht, "s_true": St, "cp_true": CPt}, t_grid,
                f"outer fold {k} ({len(te)} test) | {time.time() - t0:.0f}s")
-
     if all((run_dir / f"outer{k}.npz").exists() for k in range(args.n_outer)):
         r = load_tag(run_dir)
         print("\n" + "=" * 92 + f"\n {ds_name} | {tag} | all {args.n_outer} outer folds\n" + "=" * 92)
         report(r[0], t_grid, "nested CV, whole dataset")
-
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     main()

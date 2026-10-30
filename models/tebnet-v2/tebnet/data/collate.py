@@ -5,7 +5,6 @@ from torch import Tensor
 from chemprop.data import BatchMolGraph
 from chemprop.featurizers import SimpleMoleculeMolGraphFeaturizer
 from tebnet.data.featurizer import CleanBondFeaturizer
-
 @dataclass
 class ThermoBatch:
     bmg: BatchMolGraph
@@ -17,10 +16,8 @@ class ThermoBatch:
     T_grid: Tensor
     smiles: list[str]
     comp: Tensor | None = None  
-
     def __len__(self) -> int:
         return len(self.smiles)
-
     def to(self, device: torch.device) -> "ThermoBatch":
         if hasattr(self.bmg, "to"):
             self.bmg.to(device)  
@@ -35,7 +32,6 @@ class ThermoBatch:
             smiles=self.smiles,
             comp=self.comp.to(device) if self.comp is not None else None,
         )
-
 class ThermoCollater:
     def __init__(self, mol_graph_featurizer: SimpleMoleculeMolGraphFeaturizer | None = None, atom_featurizer=None, bond_featurizer=None):
         if mol_graph_featurizer is None:
@@ -46,7 +42,6 @@ class ThermoCollater:
             else:
                 mol_graph_featurizer = SimpleMoleculeMolGraphFeaturizer(bond_featurizer=bond_featurizer,)
         self.mol_graph_featurizer = mol_graph_featurizer
-
     def __call__(self, batch: list[dict]) -> ThermoBatch:
         mols = [item["mol"] for item in batch]
         mol_graphs = [self.mol_graph_featurizer(mol) for mol in mols]

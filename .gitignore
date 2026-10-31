@@ -116,3 +116,6 @@ teb_manuscript/teb_manuscript_revised.zip
 # manuscript sources and internal analysis (not part of the public code)
 tebnet_manuscript/
 dataset-analysis/
+
+# private figure materials (never publish)
+figures_materials/

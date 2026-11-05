@@ -26,7 +26,6 @@ TEB-Net/
 │   ├── baseline_common.py     # Shared utilities for all baselines
 │   └── deeptherm_eval.py      # Unified evaluation across splits
 ├── data/                      # Datasets and splits (DeepTherm, Ureel, WUDILY-CHO, RMG)
-├── archive/tebnet-v2/         # Archived earlier model generation (provenance only)
 └── README.md                  # This file
 ```
 

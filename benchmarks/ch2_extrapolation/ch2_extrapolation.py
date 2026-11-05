@@ -30,10 +30,11 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 HERE = Path(__file__).resolve().parent
-BENCH_ROOT = HERE.parent
-REPO_ROOT = BENCH_ROOT.parent
+OUT_DIR = HERE
+REPO_ROOT = HERE.parent.parent
+BENCH_ROOT = REPO_ROOT / "models-baseline"
 TEBNET_V3 = REPO_ROOT / "models" / "tebnet-v3"
-for _p in (HERE, TEBNET_V3, REPO_ROOT):
+for _p in (HERE, HERE.parent, TEBNET_V3, REPO_ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 from baseline_common import GROUPS, dt_to_si, get_split, load_dataset, targets_dt
@@ -183,7 +184,7 @@ def main() -> None:
     ap.add_argument("--list", action="store_true", help="list the tags and exit")
     ap.add_argument("--runs_root", type=str, default=str(BENCH_ROOT / "benchmark_results_baselines"))
     ap.add_argument("--series_csv", type=str, default=str(TEBNET_V3 / "check" / "homologous_series.csv"))
-    ap.add_argument("--out_dir", type=str, default=str(BENCH_ROOT / "ch2_extrapolation"))
+    ap.add_argument("--out_dir", type=str, default=str(OUT_DIR))
     ap.add_argument("--split_type", default="random")
     ap.add_argument("--split_seed", type=int, default=0)
     ap.add_argument("--device", default="cpu", help="GNN inference device (cpu or cuda)")

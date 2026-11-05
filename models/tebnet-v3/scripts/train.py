@@ -202,7 +202,7 @@ def print_deeptherm_table(title: str, p: dict, t_grid: np.ndarray) -> dict:
 def main():
     ap = argparse.ArgumentParser(description="TEB-Net under the DeepTherm protocol")
     ap.add_argument("--seed", type=int, required=True, help="model-initialisation seed")
-    ap.add_argument("--csv", type=str, default=str(BENCHMARK_ROOT / "deeptherm_data.csv"))
+    ap.add_argument("--csv", type=str, default=str(PROJECT_ROOT / "deeptherm_data.csv"))
     ap.add_argument("--physics_cache", type=str, default="auto")
     ap.add_argument("--smiles_col", type=str, default="smiles")
     ap.add_argument("--h_col", type=str, default=None)

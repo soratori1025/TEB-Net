@@ -20,10 +20,10 @@ import os
 import sys
 from pathlib import Path
 import numpy as np
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent
 BENCHMARK_ROOT = PROJECT_ROOT.parent
-TEBNET_MODEL_ROOT = BENCHMARK_ROOT.parent.parent
-for p in (PROJECT_ROOT, TEBNET_MODEL_ROOT, TEBNET_MODEL_ROOT / "data"):
+TEBNET_MODEL_ROOT = BENCHMARK_ROOT
+for p in (PROJECT_ROOT, TEBNET_MODEL_ROOT / "models" / "tebnet-v3", TEBNET_MODEL_ROOT, TEBNET_MODEL_ROOT / "data"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 KCAL_TO_J = 4184.0
@@ -36,7 +36,8 @@ TARGET_NAMES = ["H298"] + ["S298"] + [f"Cp{int(T)}" for T in DEEPTHERM_T_GRID]
 GROUPS = {"h": [0], "s": [1], "cp": list(range(2, 9))}
 def add_common_args(ap: argparse.ArgumentParser) -> None:
     ap.add_argument("--seed", type=int, default=0, help="model seed (initialisation / random search)")
-    ap.add_argument("--csv", type=str, default=str(BENCHMARK_ROOT / "deeptherm_data.csv"))
+    ap.add_argument("--csv", type=str,
+                    default=str(BENCHMARK_ROOT / "models" / "tebnet-v3" / "deeptherm_data.csv"))
     ap.add_argument("--physics_cache", type=str, default="auto")
     ap.add_argument("--smiles_col", type=str, default="smiles")
     ap.add_argument("--h_col", type=str, default=None)

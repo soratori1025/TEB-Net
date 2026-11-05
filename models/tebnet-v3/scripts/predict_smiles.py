@@ -12,7 +12,7 @@ ref_* columns (e.g. NIST) are the measured check.
 
 Usage
   B=benchmark_results_v153
-  python check/predict_smiles.py --smiles_csv homologous_series.csv \
+  python scripts/predict_smiles.py --smiles_csv homologous_series.csv \
       --h_runs   $B/thermo_physics_chebyshev_3d_grouped_d5_global_w1-0-0_mon-h/random0/member*_seed* \
       --scp_runs $B/thermo_physics_chebyshev_3d_grouped_d5_global_w0-1.5-1_mon-scp/random0/member*_seed* \
       --out homologous_predictions.csv

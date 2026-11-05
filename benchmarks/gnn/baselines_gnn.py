@@ -30,8 +30,11 @@ import argparse
 import copy
 import math
 import random
+import sys
 import time
+from pathlib import Path
 import numpy as np
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from baseline_common import (
     TARGET_NAMES, add_common_args, dt_to_si, get_split, load_dataset, pred_dict, prepare_run_dir, targets_dt, targets_si,
     write_run,

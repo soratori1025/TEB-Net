@@ -27,8 +27,11 @@ The selected model is the one fitted on TRAIN; validation is never used for fitt
 from __future__ import annotations
 import argparse
 import itertools
+import sys
 import time
+from pathlib import Path
 import numpy as np
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from baseline_common import (
     GROUPS, add_common_args, dt_to_si, get_split, load_dataset, pred_dict, prepare_run_dir,
     targets_dt, targets_si, write_run,

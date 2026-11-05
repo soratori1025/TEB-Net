@@ -21,9 +21,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 HERE = Path(__file__).resolve().parent
-BENCH_ROOT = HERE.parent
-REPO_ROOT = BENCH_ROOT.parent
-OUT_DIR = BENCH_ROOT / "ch2_extrapolation"
+OUT_DIR = HERE
+REPO_ROOT = HERE.parent.parent
+BENCH_ROOT = REPO_ROOT / "models-baseline"
 SERIES = REPO_ROOT / "models" / "tebnet-v3" / "check" / "homologous_series.csv"
 MEMBERS = REPO_ROOT / "tebnet_manuscript" / "01_Manuscript" / "figures" / "homologous_members.csv"
 PREDICTIONS = REPO_ROOT / "models" / "tebnet-v3" / "homologous_predictions.csv"
